@@ -219,6 +219,7 @@ def gen_long_ocp():
   ocp.code_export_directory = EXPORT_DIR
   return ocp
 
+
 class LongitudinalMpc:
   def __init__(self, mode='acc'):
     self.mode = mode
@@ -692,7 +693,7 @@ class LongitudinalMpc:
     self.j_solution = self.u_sol[:,0]
 
     self.prev_a = np.interp(T_IDXS + 0.05, T_IDXS, self.a_solution)
-    
+
     t = sec_since_boot()
     if self.solution_status != 0:
       if t > self.last_cloudlog_t + 5.0:
