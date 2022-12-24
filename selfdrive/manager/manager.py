@@ -103,6 +103,8 @@ def manager_init() -> None:
     ("HapticFeedbackWhenSpeedCamera", "0"),       
     ("SoftHoldMode", "1"),       
     ("SteeringRateCost", "800"),       
+    ("SteerDeltaUp", "3"),       
+    ("SteerDeltaDown", "7"),       
   ]
   if not PC:
     default_params.append(("LastUpdateTime", datetime.datetime.utcnow().isoformat().encode('utf8')))

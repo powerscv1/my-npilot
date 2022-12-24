@@ -64,6 +64,8 @@ class CarController:
     self.softHoldMode = 1
     self.blinking_signal = False #아이콘 깜박이용 1Hz
     self.blinking_frame = int(1.0 / DT_CTRL)
+    self.steerDeltaUp = 3
+    self.steerDeltaDown = 7
 
   def update(self, CC, CS):
     actuators = CC.actuators
@@ -71,6 +73,8 @@ class CarController:
 
     # steering torque
     new_steer = int(round(actuators.steer * self.params.STEER_MAX))
+    self.params.STEER_DELTA_UP = self.steerDeltaUp
+    self.params.STEER_DELTA_DOWN = self.steerDeltaDown
     apply_steer = apply_std_steer_torque_limits(new_steer, self.apply_steer_last, CS.out.steeringTorque, self.params)
 
     if not CC.latActive:
@@ -109,6 +113,8 @@ class CarController:
       self.jerkUpperLowerLimit = float(int(Params().get("JerkUpperLowerLimit", encoding="utf8")))
       self.hapticFeedbackWhenSpeedCamera = int(Params().get("HapticFeedbackWhenSpeedCamera", encoding="utf8"))
       self.softHoldMode = int(Params().get("SoftHoldMode", encoding="utf8"))
+      self.steerDeltaUp = int(Params().get("SteerDeltaUp", encoding="utf8"))
+      self.steerDeltaDown = int(Params().get("SteerDeltaDown", encoding="utf8"))
 
     # tester present - w/ no response (keeps relevant ECU disabled)
     if self.frame % 100 == 0 and not (self.CP.flags & HyundaiFlags.CANFD_CAMERA_SCC.value) and self.CP.openpilotLongitudinalControl:
