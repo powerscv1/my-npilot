@@ -238,6 +238,7 @@ std::unordered_map<std::string, uint32_t> keys = {
     { "InitMyDrivingMode", PERSISTENT },
     { "MyDrivingMode", PERSISTENT },
     { "MySafeModeFactor", PERSISTENT },
+    { "LiveSteerRatioApply", PERSISTENT },
     { "MyEcoModeFactor", PERSISTENT },
     { "AutoSyncCruiseSpeed", PERSISTENT },
     { "StopDistance", PERSISTENT },
