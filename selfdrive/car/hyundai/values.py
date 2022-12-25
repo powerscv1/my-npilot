@@ -49,7 +49,7 @@ class CarControllerParams:
     elif CP.carFingerprint in (CAR.KIA_STINGER, CAR.KONA_HEV):
       self.STEER_MAX = 384
     elif CP.carFingerprint in (CAR.SANTA_FE_HEV_2022):
-      self.STEER_MAX = 480
+      self.STEER_MAX = 384
       self.STEER_DELTA_UP = 3
       self.STEER_DELTA_DOWN = 7
       
