@@ -21,8 +21,8 @@ AWARENESS_DECEL = -0.2  # car smoothly decel at .2m/s^2 when user is distracted
 A_CRUISE_MIN = -1.2
 #A_CRUISE_MAX_VALS = [1.6, 1.2, 0.8, 0.6]
 #A_CRUISE_MAX_VALS = [2.0, 1.2, 0.8, 0.6]
-A_CRUISE_MAX_VALS = [2.0, 1.4, 0.4, 0.2]
-A_CRUISE_MAX_BP = [0., 10.0, 25., 40.]
+A_CRUISE_MAX_VALS = [2.0, 1.4, 0.5, 0.2, 0.15]
+A_CRUISE_MAX_BP = [0., 40 * CV.KPH_TO_MS, 70 * CV.KPH_TO_MS, 100 * CV.KPH_TO_MS, 140 * CV.KPH_TO_MS]
 
 # Lookup table for turns
 _A_TOTAL_MAX_V = [1.7, 3.2]
