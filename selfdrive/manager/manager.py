@@ -49,6 +49,7 @@ def manager_init() -> None:
     ("AutoResumeFromGas", "1"),
     ("AutoResumeFromGasSpeed", "30"),
     ("AutoResumeFromGasSpeedMode", "0"),    
+    ("AutoCancelFromGas", "0"),    
     ("OpkrPrebuiltOn", "0"),
     ("AutoCurveSpeedCtrl", "1"),
     ("AutoCurveSpeedFactor", "100"),
