@@ -225,7 +225,7 @@ class CruiseHelper:
 
   def cruise_control(self, controls, CS, active_mode=0):  #active_mode => -3(OFF auto), -2(OFF brake), -1(OFF user), 0(OFF), 1(ON user), 2(ON gas), 3(ON auto)
     if controls.enabled:
-      if active_mode > 0 and controls.CC.longEnabled and self.longCruiseGap != 5:
+      if active_mode > 0 and controls.CC.longEnabled:
         if self.longActiveUser <= 0:
           controls.LoC.reset(v_pid=CS.vEgo)
         if self.longControlActiveSound >= 2 and self.longActiveUser != active_mode:
@@ -460,7 +460,7 @@ class CruiseHelper:
         elif xState in [XState.e2eStop, XState.e2eCruise] and v_ego_kph_set < v_cruise_kph and controls.v_future*CV.MS_TO_KPH < v_ego_kph * 0.6: # 모델이 감속을 지시하고 엑셀을 밟으면 속도를 빠르게 하면 안됨.
           v_cruise_kph = v_ego_kph_set
           pass
-      elif not CS.gasPressed and self.gasPressedCount > 2: #엑셀을 밟았다가 떼면..
+      elif not CS.gasPressed and self.gasPressedCount > 2 and self.longCruiseGap != 5: #엑셀을 밟았다가 떼면..
         if False: #CS.myDrivingMode == 2: 관성모드 없앰..
           self.cruise_control(controls, CS, -3)
           self.userCruisePaused = True
@@ -487,7 +487,7 @@ class CruiseHelper:
       elif not CS.brakePressed and self.preBrakePressed:
         if v_ego_kph < 5.0 and xState == XState.softHold:
           self.cruise_control(controls, CS, 3)
-        elif self.autoResumeFromBrakeRelease: # 브레이크 해제에 대한 크루즈 ON
+        elif self.autoResumeFromBrakeRelease and self.longCruiseGap != 5: # 브레이크 해제에 대한 크루즈 ON
           if resume_cond and v_ego_kph > 1.0 and self.autoResumeFromBrakeReleaseDist < dRel and self.autoResumeFromBrakeReleaseDist > 0:
             v_cruise_kph = v_ego_kph_set  # 현재속도로 세트~
             self.cruise_control(controls, CS, 3)
