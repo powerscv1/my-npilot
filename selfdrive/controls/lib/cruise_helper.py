@@ -87,7 +87,7 @@ class CruiseHelper:
     self.autoResumeFromGasSpeed = float(int(Params().get("AutoResumeFromGasSpeed", encoding="utf8")))
     self.autoResumeFromGas = Params().get_bool("AutoResumeFromGas")
     self.autoResumeFromBrakeRelease = Params().get_bool("AutoResumeFromBrakeRelease")
-    self.autoSyncCruiseSpeed = Params().get_bool("AutoSyncCruiseSpeed")
+    self.autoSyncCruiseSpeedMax = int(Params().get("AutoSyncCruiseSpeedMax"))
     self.autoResumeFromBrakeReleaseDist = float(int(Params().get("AutoResumeFromBrakeReleaseDist", encoding="utf8")))
     self.autoResumeFromBrakeReleaseLeadCar = Params().get_bool("AutoResumeFromBrakeReleaseLeadCar")
     self.autoResumeFromBrakeCarSpeed = float(int(Params().get("AutoResumeFromBrakeCarSpeed", encoding="utf8")))
@@ -126,7 +126,7 @@ class CruiseHelper:
         self.autoResumeFromGas = Params().get_bool("AutoResumeFromGas")
         self.autoResumeFromBrakeRelease = Params().get_bool("AutoResumeFromBrakeRelease")
       elif self.update_params_count == 5:
-        self.autoSyncCruiseSpeed = Params().get_bool("AutoSyncCruiseSpeed")
+        self.autoSyncCruiseSpeedMax = int(Params().get("AutoSyncCruiseSpeedMax"))
         self.autoResumeFromBrakeReleaseDist = float(int(Params().get("AutoResumeFromBrakeReleaseDist", encoding="utf8")))
       elif self.update_params_count == 6:
         self.autoResumeFromBrakeReleaseLeadCar = Params().get_bool("AutoResumeFromBrakeReleaseLeadCar")
@@ -232,6 +232,8 @@ class CruiseHelper:
           controls.events.add(EventName.cruiseResume)
         self.longActiveUser = active_mode
         self.userCruisePaused = False
+        if self.gapButtonMode == 3:
+          self.longCruiseGap = 4
       elif active_mode <= 0:
         if self.longActiveUser != active_mode and self.longControlActiveSound >= 2:
           #controls.events.add(EventName.cruisePaused)
@@ -276,7 +278,10 @@ class CruiseHelper:
               self.longCruiseGap = 1 if self.longCruiseGap == 5 else self.longCruiseGap + 1
             elif self.gapButtonMode == 2:
               self.longCruiseGap = 4 if self.longCruiseGap == 5 else self.longCruiseGap + 1
+            elif self.gapButtonMode == 3:
+              self.longCruiseGap = 5
 
+            button_type = ButtonType.gapAdjustCruise
             #Params().put("PrevCruiseGap", str(self.longCruiseGap))
 
           LongPressed = False
@@ -444,6 +449,10 @@ class CruiseHelper:
               else:
                 v_cruise_kph = buttonSpeed
                 self.v_cruise_kph_backup = v_cruise_kph
+        elif button == ButtonType.gapAdjustCruise:
+          if self.longActiveUser > 0 and self.gapButtonMode == 3:
+            self.cruise_control(controls, CS, -1)
+
       ###### gas, brake관련 처리...
       if CS.brakePressed:
         self.cruise_control(controls, CS, -2)
@@ -452,9 +461,10 @@ class CruiseHelper:
       elif CS.gasPressed:
         if self.autoCancelFromGas > 0 and v_ego_kph < self.autoCancelFromGas: # 일정속도 이하에서 가속페달을 밟으면 크루즈해제함. 이상한 레이더가 수신되거나, 주차장, 복잡한 도로에서 사용..
           self.cruise_control(controls, CS, -2)
-        elif v_ego_kph > v_cruise_kph and self.autoSyncCruiseSpeed:
-          v_cruise_kph = v_ego_kph_set
-          self.v_cruise_kph_backup = v_cruise_kph #가스로 할땐 백업
+        elif v_ego_kph > v_cruise_kph and self.autoSyncCruiseSpeedMax > self.autoResumeFromGasSpeed:
+          if self.autoResumeFromGasSpeed < v_ego_kph < self.autoSyncCruiseSpeedMax: # 오토크루즈 ON속도보다 높고, 130키로보다 작을때만 싱크
+            v_cruise_kph = v_ego_kph_set
+            self.v_cruise_kph_backup = v_cruise_kph #가스로 할땐 백업
         if xState == XState.softHold: #소프트 홀드상태에서 가속페달을 밟으면 크루즈를 끄자~
           self.cruise_control(controls, CS, -2)
         elif xState in [XState.e2eStop, XState.e2eCruise] and v_ego_kph_set < v_cruise_kph and controls.v_future*CV.MS_TO_KPH < v_ego_kph * 0.6: # 모델이 감속을 지시하고 엑셀을 밟으면 속도를 빠르게 하면 안됨.
@@ -483,6 +493,9 @@ class CruiseHelper:
           else:
             if self.gasPressedCount * DT_CTRL < 0.6 and v_ego_kph_set > 30.0:  #1초이내에 Gas페달을 잡았다가 놓으면...
               v_cruise_kph = self.v_cruise_speed_up(v_cruise_kph, roadSpeed)
+              if self.autoSyncCruiseSpeedMax > 0 and v_cruise_kph > self.autoSyncCruiseSpeedMax:
+                v_cruise_kph = self.autoSyncCruiseSpeedMax
+              self.v_cruise_kph_backup = v_cruise_kph
 
       elif not CS.brakePressed and self.preBrakePressed:
         if v_ego_kph < 5.0 and xState == XState.softHold:

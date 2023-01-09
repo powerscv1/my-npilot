@@ -24,8 +24,6 @@ from system.version import is_dirty, get_commit, get_version, get_origin, get_sh
                               terms_version, training_version, is_tested_branch
 
 
-sys.path.append(os.path.join(BASEDIR, "pyextra"))
-
 
 def manager_init() -> None:
   # update system time from panda
@@ -85,7 +83,7 @@ def manager_init() -> None:
     ("LiveSteerRatioApply", "100"),      
     ("MyEcoModeFactor", "80"),      
     ("PrevCruiseGap", "4"),      
-    ("AutoSyncCruiseSpeed", "1"),       
+    ("AutoSyncCruiseSpeedMax", "120"),       
     ("StopDistance", "600"), 
     ("CustomMapbox", "0"),    
     ("E2eDecelSpeed", "90"),        
@@ -102,7 +100,8 @@ def manager_init() -> None:
     ("JerkUpperLowerLimit", "8"),    
     ("KeepEngage", "1"),
     ("UseLanelines", "0"),    
-    ("PathOffset", "0"),   
+    ("PathOffset", "0"),  
+    ("PathCostApply", "100"),
     ("HapticFeedbackWhenSpeedCamera", "0"),       
     ("SoftHoldMode", "1"),       
     ("SteeringRateCost", "800"),       
@@ -160,6 +159,8 @@ def manager_init() -> None:
   sentry.init(sentry.SentryProject.SELFDRIVE)
   cloudlog.bind_global(dongle_id=dongle_id, version=get_version(), dirty=is_dirty(),
                        device=HARDWARE.get_device_type())
+  if os.path.isfile('/data/tmux_error.log'):
+    os.remove('/data/tmux_error.log')
 
 
 def manager_prepare() -> None:

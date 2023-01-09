@@ -31,8 +31,12 @@ class LateralPlanner:
     self.DH = DesireHelper()
     self.LP = LanePlanner()
     self.readParams = 0
+    self.lanelines_active = False
+    self.lanelines_active_tmp = False
+
     self.use_lanelines = Params().get_bool('UseLanelines')
     self.pathOffset = float(int(Params().get("PathOffset", encoding="utf8")))*0.01
+    self.pathCostApply = float(int(Params().get("PathCostApply", encoding="utf8")))*0.01
 
     # Vehicle model parameters used to calculate lateral movement of car
     self.factor1 = CP.wheelbase - CP.centerToFront
@@ -45,6 +49,7 @@ class LateralPlanner:
     self.plan_yaw_rate = np.zeros((TRAJECTORY_SIZE,))
     self.t_idxs = np.arange(TRAJECTORY_SIZE)
     self.y_pts = np.zeros(TRAJECTORY_SIZE)
+    self.d_path_w_lines_xyz = np.zeros((TRAJECTORY_SIZE, 3))
 
     self.lat_mpc = LateralMpc()
     self.reset_mpc(np.zeros(4))
@@ -61,6 +66,7 @@ class LateralPlanner:
       self.readParams = 100
       self.use_lanelines = Params().get_bool('UseLanelines')
       self.pathOffset = float(int(Params().get("PathOffset", encoding="utf8")))*0.01
+      self.pathCostApply = float(int(Params().get("PathCostApply", encoding="utf8")))*0.01
       self.steeringRateCost = float(int(Params().get("SteeringRateCost", encoding="utf8")))
     # clip speed , lateral planning is not possible at 0 speed
     self.v_ego = max(MIN_SPEED, sm['carState'].vEgo)
@@ -68,31 +74,56 @@ class LateralPlanner:
 
     # Parse model predictions
     md = sm['modelV2']
-    self.LP.parse_model(md)
     if len(md.position.x) == TRAJECTORY_SIZE and len(md.orientation.x) == TRAJECTORY_SIZE:
       self.path_xyz = np.column_stack([md.position.x, md.position.y, md.position.z])
       self.t_idxs = np.array(md.position.t)
       self.plan_yaw = np.array(md.orientation.z)
       self.plan_yaw_rate = np.array(md.orientationRate.z)
 
-    # Lane change logic
-    desire_state = md.meta.desireState
-    if len(desire_state):
-      self.l_lane_change_prob = desire_state[log.LateralPlan.Desire.laneChangeLeft]
-      self.r_lane_change_prob = desire_state[log.LateralPlan.Desire.laneChangeRight]
-    lane_change_prob = self.l_lane_change_prob + self.r_lane_change_prob
-    self.DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob)
-
     if self.use_lanelines:
-      d_path_xyz = self.LP.get_d_path(self.v_ego, self.t_idxs, self.path_xyz)
+      # Parse model predictions
+      self.LP.parse_model(md)
+  
+      # Lane change logic
+      lane_change_prob = self.LP.l_lane_change_prob + self.LP.r_lane_change_prob
+      self.DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob)
+  
+      # Turn off lanes during lane change
+      if self.DH.desire == log.LateralPlan.Desire.laneChangeRight or self.DH.desire == log.LateralPlan.Desire.laneChangeLeft:
+        self.LP.lll_prob *= self.DH.lane_change_ll_prob
+        self.LP.rll_prob *= self.DH.lane_change_ll_prob
+  
+      # dynamic laneline/laneless logic
+      if self.LP.lll_prob < 0.3 and self.LP.rll_prob < 0.3:
+        self.lanelines_active_tmp = False
+      elif self.LP.lll_prob > 0.5 and self.LP.rll_prob > 0.5:
+        self.lanelines_active_tmp = True
+      self.lanelines_active = self.lanelines_active_tmp
+  
+      # Calculate final driving path and set MPC costs
+      if self.lanelines_active:
+        d_path_xyz = self.LP.get_d_path(self.v_ego, self.t_idxs, self.path_xyz)
+        d_path_xyz[:, 1] += self.pathOffset #ntune_common_get('pathOffset')
+      else:
+        d_path_xyz = self.path_xyz
+      
     else:
+      # Lane change logic
+      desire_state = md.meta.desireState
+      if len(desire_state):
+        self.l_lane_change_prob = desire_state[log.LateralPlan.Desire.laneChangeLeft]
+        self.r_lane_change_prob = desire_state[log.LateralPlan.Desire.laneChangeRight]
+      lane_change_prob = self.l_lane_change_prob + self.r_lane_change_prob
+      self.DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob)
+
       d_path_xyz = self.path_xyz
 
-    d_path_xyz[:, 1] += self.pathOffset #ntune_common_get('pathOffset')
 
-    self.lat_mpc.set_weights(PATH_COST, LATERAL_MOTION_COST,
+    pathCost = interp(self.v_ego, [2., 10.], [PATH_COST, PATH_COST * self.pathCostApply])
+    steeringRateCost = interp(self.v_ego, [2., 10.], [self.steeringRateCost, self.steeringRateCost/3.])
+    self.lat_mpc.set_weights(pathCost, LATERAL_MOTION_COST,
                              LATERAL_ACCEL_COST, LATERAL_JERK_COST,
-                             self.steeringRateCost)
+                             steeringRateCost)
 
     y_pts = np.interp(self.v_ego * self.t_idxs[:LAT_MPC_N + 1], np.linalg.norm(d_path_xyz, axis=1), d_path_xyz[:, 1])
     heading_pts = np.interp(self.v_ego * self.t_idxs[:LAT_MPC_N + 1], np.linalg.norm(self.path_xyz, axis=1), self.plan_yaw)
@@ -150,5 +181,8 @@ class LateralPlanner:
     lateralPlan.useLaneLines = self.use_lanelines
     lateralPlan.laneChangeState = self.DH.lane_change_state
     lateralPlan.laneChangeDirection = self.DH.lane_change_direction
+
+    plan_send.lateralPlan.dPathWLinesX = [float(x) for x in self.d_path_w_lines_xyz[:, 0]]
+    plan_send.lateralPlan.dPathWLinesY = [float(y) for y in self.d_path_w_lines_xyz[:, 1]]
 
     pm.send('lateralPlan', plan_send)
