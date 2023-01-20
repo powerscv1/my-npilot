@@ -37,6 +37,9 @@ class LateralPlanner:
     self.use_lanelines = Params().get_bool('UseLanelines')
     self.pathOffset = float(int(Params().get("PathOffset", encoding="utf8")))*0.01
     self.pathCostApply = float(int(Params().get("PathCostApply", encoding="utf8")))*0.01
+    self.lateralMotionCost = float(int(Params().get("LateralMotionCost", encoding="utf8")))*0.01
+    self.lateralAccelCost = float(int(Params().get("LateralAccelCost", encoding="utf8")))*0.01
+    self.lateralJerkCost = float(int(Params().get("LateralJerkCost", encoding="utf8")))*0.01
 
     # Vehicle model parameters used to calculate lateral movement of car
     self.factor1 = CP.wheelbase - CP.centerToFront
@@ -68,6 +71,11 @@ class LateralPlanner:
       self.pathOffset = float(int(Params().get("PathOffset", encoding="utf8")))*0.01
       self.pathCostApply = float(int(Params().get("PathCostApply", encoding="utf8")))*0.01
       self.steeringRateCost = float(int(Params().get("SteeringRateCost", encoding="utf8")))
+    elif self.readParams == 50:
+      self.lateralMotionCost = float(int(Params().get("LateralMotionCost", encoding="utf8")))*0.01
+      self.lateralAccelCost = float(int(Params().get("LateralAccelCost", encoding="utf8")))*0.01
+      self.lateralJerkCost = float(int(Params().get("LateralJerkCost", encoding="utf8")))*0.01
+
     # clip speed , lateral planning is not possible at 0 speed
     self.v_ego = max(MIN_SPEED, sm['carState'].vEgo)
     measured_curvature = sm['controlsState'].curvature
@@ -119,11 +127,14 @@ class LateralPlanner:
       d_path_xyz = self.path_xyz
 
 
-    pathCost = interp(self.v_ego, [2., 10.], [PATH_COST, PATH_COST * self.pathCostApply])
-    steeringRateCost = interp(self.v_ego, [2., 10.], [self.steeringRateCost, self.steeringRateCost/3.])
-    self.lat_mpc.set_weights(pathCost, LATERAL_MOTION_COST,
-                             LATERAL_ACCEL_COST, LATERAL_JERK_COST,
-                             steeringRateCost)
+    #pathCost = interp(self.v_ego, [2., 10.], [PATH_COST, PATH_COST * self.pathCostApply])
+    #steeringRateCost = interp(self.v_ego, [2., 10.], [self.steeringRateCost, self.steeringRateCost/3.])
+    #self.lat_mpc.set_weights(pathCost, LATERAL_MOTION_COST,
+    #                         LATERAL_ACCEL_COST, LATERAL_JERK_COST,
+    #                         steeringRateCost)
+    self.lat_mpc.set_weights(self.pathCostApply, self.lateralMotionCost,
+                             self.lateralAccelCost, self.lateralJerkCost,
+                             self.steeringRateCost)
 
     y_pts = np.interp(self.v_ego * self.t_idxs[:LAT_MPC_N + 1], np.linalg.norm(d_path_xyz, axis=1), d_path_xyz[:, 1])
     heading_pts = np.interp(self.v_ego * self.t_idxs[:LAT_MPC_N + 1], np.linalg.norm(self.path_xyz, axis=1), self.plan_yaw)

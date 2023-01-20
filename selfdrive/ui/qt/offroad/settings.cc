@@ -648,6 +648,9 @@ TuningPanel::TuningPanel(QWidget* parent) : QWidget(parent) {
     toggleLayout->addWidget(horizontal_line());    
     toggleLayout->addWidget(new CValueControl("LiveSteerRatioApply", "종컨: LiveSteerRatioApply(100)", "", "../assets/offroad/icon_road.png", 50, 110, 1));
     toggleLayout->addWidget(new CValueControl("SteeringRateCost", "종컨: SteeringRateCost(800)", "", "../assets/offroad/icon_road.png", 10, 2000, 10));
+    toggleLayout->addWidget(new CValueControl("LateralMotionCost", "종컨: LateralMotionCost(11)", "", "../assets/offroad/icon_road.png", 1, 50, 1));
+    toggleLayout->addWidget(new CValueControl("LateralAccelCost", "종컨: LateralAccelCost(100)", "", "../assets/offroad/icon_road.png", 10, 300, 1));
+    toggleLayout->addWidget(new CValueControl("LateralJerkCost", "종컨: LateralJerkCost(5)", "", "../assets/offroad/icon_road.png", 1, 50, 1));
     toggleLayout->addWidget(new CValueControl("SteerDeltaUp", "종컨: SteerDeltaUp(3)", "", "../assets/offroad/icon_road.png", 1, 20, 1));
     toggleLayout->addWidget(new CValueControl("SteerDeltaDown", "종컨: SteerDeltaDown(7)", "", "../assets/offroad/icon_road.png", 1, 20, 1));
     toggleLayout->addWidget(new CValueControl("PathCostApply", "종건: PathCostApply(100)", "", "../assets/offroad/icon_road.png", 90, 200, 5));

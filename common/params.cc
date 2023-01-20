@@ -268,6 +268,9 @@ std::unordered_map<std::string, uint32_t> keys = {
     { "HapticFeedbackWhenSpeedCamera", PERSISTENT },
     { "SoftHoldMode", PERSISTENT },
     { "SteeringRateCost", PERSISTENT },
+    { "LateralMotionCost", PERSISTENT },
+    { "LateralAccelCost", PERSISTENT },
+    { "LateralJerkCost", PERSISTENT },
     { "SteerDeltaUp", PERSISTENT },
     { "SteerDeltaDown", PERSISTENT },
 };

@@ -1,4 +1,7 @@
 """Install exception handler for process crash."""
+import os
+import traceback
+
 import sentry_sdk
 from enum import Enum
 from sentry_sdk.integrations.threading import ThreadingIntegration

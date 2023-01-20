@@ -105,6 +105,9 @@ def manager_init() -> None:
     ("HapticFeedbackWhenSpeedCamera", "0"),       
     ("SoftHoldMode", "1"),       
     ("SteeringRateCost", "800"),       
+    ("LateralMotionCost", "11"),       
+    ("LateralAccelCost", "100"),       
+    ("LateralJerkCost", "5"),       
     ("SteerDeltaUp", "3"),       
     ("SteerDeltaDown", "7"),       
   ]

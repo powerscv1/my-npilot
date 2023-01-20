@@ -52,6 +52,36 @@
       "unit": 1
     },
     {
+      "group": "Á¶ÇâÆ©´×",
+      "name": "LateralMotionCost",
+      "title": "LateralMotionCost(11)",
+      "descr": "",
+      "min": 1,
+      "max": 50,
+      "default": 11,
+      "unit": 1
+    },
+    {
+      "group": "Á¶ÇâÆ©´×",
+      "name": "LateralAccelCost",
+      "title": "LateralAccelCost(100)",
+      "descr": "",
+      "min": 10,
+      "max": 300,
+      "default": 100,
+      "unit": 1
+    },
+    {
+      "group": "Á¶ÇâÆ©´×",
+      "name": "LateralJerkCost",
+      "title": "LateralJerkCost(5)",
+      "descr": "",
+      "min": 1,
+      "max": 50,
+      "default": 5,
+      "unit": 1
+    },
+    {
       "group": "ÁÖÇà¼³Á¤",
       "name": "MyEcoModeFactor",
       "title": "¿¬ºñ°¡¼ÓºñÀ²(80%)",
