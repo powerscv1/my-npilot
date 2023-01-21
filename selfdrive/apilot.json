@@ -36,8 +36,8 @@
       "name": "LiveSteerRatioApply",
       "title": "LiveSteerRatioApply(100%)",
       "descr": "",
-      "min": 50,
-      "max": 110,
+      "min": 1,
+      "max": 200,
       "default": 100,
       "unit": 1
     },
@@ -46,19 +46,9 @@
       "name": "SteeringRateCost",
       "title": "SteeringRateCost(800)",
       "descr": "",
-      "min": 10,
+      "min": 0,
       "max": 1000,
       "default": 800,
-      "unit": 1
-    },
-    {
-      "group": "Á¶ÇâÆ©´×",
-      "name": "LateralMotionCost",
-      "title": "LateralMotionCost(11)",
-      "descr": "",
-      "min": 1,
-      "max": 50,
-      "default": 11,
       "unit": 1
     },
     {
@@ -66,19 +56,49 @@
       "name": "LateralAccelCost",
       "title": "LateralAccelCost(100)",
       "descr": "",
-      "min": 10,
-      "max": 300,
+      "min": 0,
+      "max": 1000,
       "default": 100,
       "unit": 1
     },
     {
       "group": "Á¶ÇâÆ©´×",
-      "name": "LateralJerkCost",
-      "title": "LateralJerkCost(5)",
+      "name": "SteerActuatorDelay",
+      "title": "SteerActuatorDelay(30)",
+      "descr": "°ªÀÌÅ©¸é Á¶ÇâÀ» Á»´õ ¹Ì¸®ÇÔ(ÀÏ¹Ý,10msec)",
+      "min": 0,
+      "max": 100,
+      "default": 30,
+      "unit": 1
+    },
+    {
+      "group": "Á¶ÇâÆ©´×",
+      "name": "SteerActuatorDelayLow",
+      "title": "SteerActuatorDelayLow(30)",
+      "descr": "Àú¼ÓÀÏ¶§ °ªÀ» Å©°ÔÇÏ¿© Á»´õ ºü¸¥ Á¶Çâ",
+      "min": 0,
+      "max": 200,
+      "default": 100,
+      "unit": 1
+    },
+    {
+      "group": "Á¶ÇâÆ©´×",
+      "name": "SteerDeltaUp",
+      "title": "SteerDeltaUp(3)",
       "descr": "",
       "min": 1,
-      "max": 50,
-      "default": 5,
+      "max": 20,
+      "default": 3,
+      "unit": 1
+    },
+    {
+      "group": "Á¶ÇâÆ©´×",
+      "name": "SteerDeltaDown",
+      "title": "SteerDeltaDown(7)",
+      "descr": "",
+      "min": 1,
+      "max": 20,
+      "default": 7,
       "unit": 1
     },
     {
@@ -159,16 +179,6 @@
       "min": 0,
       "max": 4,
       "default": 0,
-      "unit": 1
-    },
-    {
-      "group": "Á¶ÇâÆ©´×",
-      "name": "PathCostApply",
-      "title": "PathCostApply(100)",
-      "descr": "½ÃÇè¿ë",
-      "min": 90,
-      "max": 200,
-      "default": 100,
       "unit": 1
     },
     {

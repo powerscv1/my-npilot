@@ -104,6 +104,8 @@ class CruiseHelper:
     self.mySafeModeFactor = float(int(Params().get("MySafeModeFactor", encoding="utf8"))) / 100. if self.myDrivingMode == 2 else 1.0
     self.liveSteerRatioApply  = float(int(Params().get("LiveSteerRatioApply", encoding="utf8"))) / 100.
     self.autoCancelFromGas = int(Params().get("AutoCancelFromGas"))
+    self.steerActuatorDelay = float(int(Params().get("SteerActuatorDelay", encoding="utf8"))) / 100.
+    self.steerActuatorDelayLow = float(int(Params().get("SteerActuatorDelayLow", encoding="utf8"))) / 100.
 
   def update_params(self, frame):
     if frame % 20 == 0:
@@ -150,6 +152,15 @@ class CruiseHelper:
       elif self.update_params_count == 12:
         self.autoCancelFromGas = int(Params().get("AutoCancelFromGas"))
         self.gapButtonMode = int(Params().get("GapButtonMode"))
+      elif self.update_params_count == 13:
+        self.steerActuatorDelay = float(int(Params().get("SteerActuatorDelay", encoding="utf8"))) / 100.
+        self.steerActuatorDelayLow = float(int(Params().get("SteerActuatorDelayLow", encoding="utf8"))) / 100.
+
+
+  def getSteerActuatorDelay(self, v_ego):
+    v_ego_kph = v_ego * 3.6
+
+    return interp(v_ego_kph, [0, 100], [self.steerActuatorDelayLow, self.steerActuatorDelay])
 
   @staticmethod
   def get_lead(sm):
@@ -476,10 +487,11 @@ class CruiseHelper:
           self.userCruisePaused = True
         else:
           if self.longActiveUser <= 0:
-            if ((resume_cond and v_ego_kph >= self.autoResumeFromGasSpeed) or CS.gas >= 0.6) and self.autoResumeFromGas:
+            if ((resume_cond and (v_ego_kph >= self.autoResumeFromGasSpeed)) or CS.gas >= 0.6) and self.autoResumeFromGas:
               if self.autoResumeFromGasSpeedMode == 0: #현재속도로 세트
-                if self.preGasPressedMax > 0.25:
-                  v_cruise_kph = self.v_cruise_kph_backup # 25%이상 GAS를 밟으면..
+                # 60% 이상 밟으면...
+                if self.preGasPressedMax >= 0.6:
+                  v_cruise_kph = self.v_cruise_kph_backup # 60%이상 GAS를 밟으면..
                 else:
                   v_cruise_kph = v_ego_kph_set  # 현재속도로 세트~
               elif self.autoResumeFromGasSpeedMode == 1:   #기존속도
@@ -496,21 +508,27 @@ class CruiseHelper:
               if self.autoSyncCruiseSpeedMax > 0 and v_cruise_kph > self.autoSyncCruiseSpeedMax:
                 v_cruise_kph = self.autoSyncCruiseSpeedMax
               self.v_cruise_kph_backup = v_cruise_kph
-
+      # 브레이크해제시
       elif not CS.brakePressed and self.preBrakePressed:
+        # 정지상태, 소프트홀드일때 크루즈 ON
         if v_ego_kph < 5.0 and xState == XState.softHold:
           self.cruise_control(controls, CS, 3)
+        # 브레이크해제 켜지고, 크루즈갭이 5가 아닌경우에만 작동.
         elif self.autoResumeFromBrakeRelease and self.longCruiseGap != 5: # 브레이크 해제에 대한 크루즈 ON
-          if resume_cond and v_ego_kph > 1.0 and self.autoResumeFromBrakeReleaseDist < dRel and self.autoResumeFromBrakeReleaseDist > 0:
+          # 주행중, 전방차량이 20M(변수)이내이면
+          if resume_cond and v_ego_kph > 1.0 and 0 < self.autoResumeFromBrakeReleaseDist < dRel:
             v_cruise_kph = v_ego_kph_set  # 현재속도로 세트~
             self.cruise_control(controls, CS, 3)
-          elif v_ego_kph < 60.0 and xState == XState.e2eStop and self.position_y > 5.0 and abs(self.position_y) < 3.0 and self.autoResumeFromBrakeReleaseTrafficSign:
+          # 70km/h미만, 신호정지신호, 직선도로인경우
+          elif v_ego_kph < 70.0 and xState == XState.e2eStop and abs(self.position_y) < 5.0 and self.autoResumeFromBrakeReleaseTrafficSign:
             v_cruise_kph = v_ego_kph_set  
             self.cruise_control(controls, CS, 3)
+          # 전방차량이 없고, 속도가 40km/h(변수) 이상인경우
           elif dRel==0 and v_ego_kph >= self.autoResumeFromBrakeCarSpeed and self.autoResumeFromBrakeCarSpeed > 0:
             v_cruise_kph = v_ego_kph_set
             self.cruise_control(controls, CS, 3)
-          elif v_ego_kph < 1.0 and 2 < dRel < 10 and self.autoResumeFromBrakeReleaseLeadCar:
+          # 정지중, 전방차량이 10M이내인경우
+          elif v_ego_kph < 5.0 and 2 < dRel < 10 and self.autoResumeFromBrakeReleaseLeadCar:
             self.cruise_control(controls, CS, 3)
       elif self.userCruisePaused:
         if v_ego_kph > 3.0 and dRel > 0 and vRel < 0:          

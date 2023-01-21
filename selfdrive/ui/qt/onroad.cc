@@ -665,10 +665,11 @@ void AnnotatedCameraWidget::drawHud(QPainter &p, const cereal::ModelDataV2::Read
   auto car_state = sm["carState"].getCarState();
   float steer_angle =  car_state.getSteeringAngleDeg();
   auto gps = sm["gpsLocationExternal"].getGpsLocationExternal();
+  bool gpsOK = sm["liveLocationKalman"].getLiveLocationKalman().getGpsOK();
   float accuracy = gps.getAccuracy();
   bool gpsOn = false;
   QString str;
-  if (accuracy < 0.01f || accuracy > 20.f);
+  if (accuracy < 0.01f || accuracy > 20.f || gpsOK==false);
   else {
       gpsOn = true;
       str.sprintf("GPS: %4.1fm", accuracy);

@@ -1,11 +1,11 @@
 import os
 import numpy as np
-import functools
-from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 from tinygrad.tensor import Tensor
 from tinygrad.helpers import prod
-from tinygrad.nn import batch_normalize
 from tinygrad.ops import DEBUG
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+
+ONNXLIMIT = int(os.getenv("ONNXLIMIT", "-1"))
 
 def get_run_onnx(onnx_model):
   def shape_to_tuple(s): return tuple(x.dim_value for x in s.dim)
@@ -60,6 +60,7 @@ def get_run_onnx(onnx_model):
   def run_onnx(inputs={}, debug=False):
     input_tensors = {}
     intermediate_tensors = {}
+    output_tensor_names = [x.name for x in onnx_model.graph.output]
 
     # get inputs
     for inp in onnx_model.graph.input:
@@ -96,14 +97,12 @@ def get_run_onnx(onnx_model):
       elif n.op_type == "Transpose": ret = inp[0].permute(order=opt['perm'])
       elif n.op_type == "Squeeze": ret = inp[0].reshape([s for i,s in enumerate(inp[0].shape) if i not in opt['axes']])
       elif n.op_type == "Unsqueeze": ret = inp[0].reshape(np.insert(inp[0].shape, opt['axes'][0], 1).tolist())
-      elif n.op_type == "Pow": ret = inp[0].pow(inp[1])
       elif n.op_type == "ReduceL2": ret = inp[0].pow(2).sum(axis=opt['axes'], keepdim=opt['keepdims']).sqrt()
       elif n.op_type == "ReduceSum": ret = inp[0].sum(axis=opt['axes'], keepdim=opt['keepdims'])
       elif n.op_type == "GlobalAveragePool": ret = inp[0].mean(axis=tuple(range(2, len(inp[0].shape))), keepdim=True)
       elif n.op_type == "Shape": ret = inp[0].shape
       elif n.op_type == "Expand": ret = inp[0].reshape([1]*(max(len(inp[0].shape), len(inp[1]))-len(inp[0].shape)) + list(inp[0].shape)) # just broadcast
       elif n.op_type == "Div": ret = inp[0].div(inp[1])
-      elif n.op_type == "Neg": ret = -1*inp[0]
       elif n.op_type == "Constant": ret = opt['value']
       elif n.op_type == "Reshape": ret = inp[0].reshape([int(x) for x in safe_numpy(inp[1])])
       elif n.op_type == "Gather":
@@ -116,7 +115,7 @@ def get_run_onnx(onnx_model):
         ret = ret.reshape([s for i,s in enumerate(shape) if i != axis]) if len(indices) == 1 else ret # squeeze if needed
       elif n.op_type == "BatchNormalization":
         invstd = inp[4].add(opt.get('epsilon', 1e-5))**-0.5
-        ret = batch_normalize(inp[0], inp[1], inp[2], inp[3], invstd)
+        ret = inp[0].batchnorm(inp[1], inp[2], inp[3], invstd)
       elif n.op_type == "Gemm": ret = inp[0].linear(inp[1].transpose() if opt.get('transB', 0) == 1 else inp[1], inp[2])
       elif n.op_type == "Conv":
         x,w,b = inp if len(inp) == 3 else (inp[0], inp[1], None)
@@ -175,6 +174,9 @@ def get_run_onnx(onnx_model):
       if debug: print(ret.shape)
       intermediate_tensors[n.output[0]] = ret
       #print(ret.numpy().mean())
+      if num == ONNXLIMIT:
+        output_tensor_names = n.output
+        break
 
-    return {outp.name:intermediate_tensors[outp.name] for outp in onnx_model.graph.output}
+    return {outp:intermediate_tensors[outp] for outp in output_tensor_names}
   return run_onnx

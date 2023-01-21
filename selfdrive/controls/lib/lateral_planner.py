@@ -36,10 +36,7 @@ class LateralPlanner:
 
     self.use_lanelines = Params().get_bool('UseLanelines')
     self.pathOffset = float(int(Params().get("PathOffset", encoding="utf8")))*0.01
-    self.pathCostApply = float(int(Params().get("PathCostApply", encoding="utf8")))*0.01
-    self.lateralMotionCost = float(int(Params().get("LateralMotionCost", encoding="utf8")))*0.01
     self.lateralAccelCost = float(int(Params().get("LateralAccelCost", encoding="utf8")))*0.01
-    self.lateralJerkCost = float(int(Params().get("LateralJerkCost", encoding="utf8")))*0.01
 
     # Vehicle model parameters used to calculate lateral movement of car
     self.factor1 = CP.wheelbase - CP.centerToFront
@@ -69,12 +66,9 @@ class LateralPlanner:
       self.readParams = 100
       self.use_lanelines = Params().get_bool('UseLanelines')
       self.pathOffset = float(int(Params().get("PathOffset", encoding="utf8")))*0.01
-      self.pathCostApply = float(int(Params().get("PathCostApply", encoding="utf8")))*0.01
       self.steeringRateCost = float(int(Params().get("SteeringRateCost", encoding="utf8")))
     elif self.readParams == 50:
-      self.lateralMotionCost = float(int(Params().get("LateralMotionCost", encoding="utf8")))*0.01
       self.lateralAccelCost = float(int(Params().get("LateralAccelCost", encoding="utf8")))*0.01
-      self.lateralJerkCost = float(int(Params().get("LateralJerkCost", encoding="utf8")))*0.01
 
     # clip speed , lateral planning is not possible at 0 speed
     self.v_ego = max(MIN_SPEED, sm['carState'].vEgo)
@@ -94,7 +88,7 @@ class LateralPlanner:
   
       # Lane change logic
       lane_change_prob = self.LP.l_lane_change_prob + self.LP.r_lane_change_prob
-      self.DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob)
+      self.DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob, md)
   
       # Turn off lanes during lane change
       if self.DH.desire == log.LateralPlan.Desire.laneChangeRight or self.DH.desire == log.LateralPlan.Desire.laneChangeLeft:
@@ -111,9 +105,9 @@ class LateralPlanner:
       # Calculate final driving path and set MPC costs
       if self.lanelines_active:
         d_path_xyz = self.LP.get_d_path(self.v_ego, self.t_idxs, self.path_xyz)
-        d_path_xyz[:, 1] += self.pathOffset #ntune_common_get('pathOffset')
       else:
         d_path_xyz = self.path_xyz
+      d_path_xyz[:, 1] += self.pathOffset
       
     else:
       # Lane change logic
@@ -122,7 +116,7 @@ class LateralPlanner:
         self.l_lane_change_prob = desire_state[log.LateralPlan.Desire.laneChangeLeft]
         self.r_lane_change_prob = desire_state[log.LateralPlan.Desire.laneChangeRight]
       lane_change_prob = self.l_lane_change_prob + self.r_lane_change_prob
-      self.DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob)
+      self.DH.update(sm['carState'], sm['carControl'].latActive, lane_change_prob, md)
 
       d_path_xyz = self.path_xyz
 
@@ -132,8 +126,8 @@ class LateralPlanner:
     #self.lat_mpc.set_weights(pathCost, LATERAL_MOTION_COST,
     #                         LATERAL_ACCEL_COST, LATERAL_JERK_COST,
     #                         steeringRateCost)
-    self.lat_mpc.set_weights(self.pathCostApply, self.lateralMotionCost,
-                             self.lateralAccelCost, self.lateralJerkCost,
+    self.lat_mpc.set_weights(PATH_COST, LATERAL_MOTION_COST,
+                             self.lateralAccelCost, LATERAL_JERK_COST,
                              self.steeringRateCost)
 
     y_pts = np.interp(self.v_ego * self.t_idxs[:LAT_MPC_N + 1], np.linalg.norm(d_path_xyz, axis=1), d_path_xyz[:, 1])
