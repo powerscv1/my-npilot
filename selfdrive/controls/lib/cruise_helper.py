@@ -57,7 +57,7 @@ class CruiseHelper:
     self.position_x = 1000.0
     self.position_y = 300.0
     self.cruiseButtons = 0
-    self.userCruisePaused = True
+    self.userCruisePaused = False
     self.radarAlarmCount = 0
     self.naviSpeedLimitTarget = 30
     self.dRel = 0
@@ -75,7 +75,7 @@ class CruiseHelper:
 
     self.update_params_count = 0
 
-    self.longCruiseGap = 4 #int(Params().get("PrevCruiseGap"))
+    self.longCruiseGap = int(Params().get("PrevCruiseGap"))
 
     self.autoCurveSpeedCtrl = int(Params().get("AutoCurveSpeedCtrl"))
     self.autoCurveSpeedFactor = float(int(Params().get("AutoCurveSpeedFactor", encoding="utf8")))*0.01
@@ -373,7 +373,7 @@ class CruiseHelper:
     
     curveSpeed = self.update_speed_curve(CS, controls) ## longitudinal_control로 이동함.. 호출해봐야 안됨..
 
-    v_ego_kph = int(CS.vEgo * CV.MS_TO_KPH + 0.5) + 3.0 #실제속도가 v_cruise_kph보다 조금 빨라 3을 더함.
+    v_ego_kph = int(CS.vEgo * CV.MS_TO_KPH + 0.5) + 2.0 #실제속도가 v_cruise_kph보다 조금 빨라 2을 더함.
     v_ego_kph_set = clip(v_ego_kph, MIN_SET_SPEED_KPH, MAX_SET_SPEED_KPH)
     xState = controls.sm['longitudinalPlan'].xState
     dRel, vRel = self.get_lead_rel(controls)
@@ -401,6 +401,11 @@ class CruiseHelper:
         #self.radarAlarmCount = 2000 if self.radarAlarmCount == 0 else self.radarAlarmCount
       elif xState == XState.e2eCruise and self.trafficState != 2 and trafficState == 2 and CS.vEgo < 0.1:
         controls.events.add(EventName.trafficSignGreen)
+      elif xState == XState.e2eStop and self.xState in [XState.e2eCruise, XState.lead]: # and self.longControlActiveSound >= 2:
+        if (frame - self.trafficSignedFrame)*DT_CTRL > 20.0: # 알리고 20초가 지나면 알리자.
+          controls.events.add(EventName.trafficStopping)
+          self.trafficSignedFrame = frame
+
     self.trafficState = trafficState
     self.dRel = dRel
     self.vRel = vRel
@@ -503,7 +508,7 @@ class CruiseHelper:
                   v_cruise_kph = v_ego_kph_set  # 현재속도로 세트~
               self.cruise_control(controls, CS, 3)
           else:
-            if self.gasPressedCount * DT_CTRL < 0.6 and v_ego_kph_set > 30.0:  #1초이내에 Gas페달을 잡았다가 놓으면...
+            if self.gasPressedCount * DT_CTRL < 0.6 and v_ego_kph_set > 30.0 and v_cruise_kph < self.autoSyncCruiseSpeedMax:  #1초이내에 Gas페달을 잡았다가 놓으면...
               v_cruise_kph = self.v_cruise_speed_up(v_cruise_kph, roadSpeed)
               if self.autoSyncCruiseSpeedMax > 0 and v_cruise_kph > self.autoSyncCruiseSpeedMax:
                 v_cruise_kph = self.autoSyncCruiseSpeedMax

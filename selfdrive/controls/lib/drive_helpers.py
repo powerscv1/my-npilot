@@ -23,7 +23,7 @@ CONTROL_N = 33
 CAR_ROTATION_RADIUS = 0.0
 
 # EU guidelines
-MAX_LATERAL_JERK = 20.0 #5.0
+MAX_LATERAL_JERK = 10.0 #5.0
 
 ButtonEvent = car.CarState.ButtonEvent
 ButtonType = car.CarState.ButtonEvent.Type

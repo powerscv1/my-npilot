@@ -352,16 +352,6 @@
       "unit": 1
     },
     {
-      "group": "조향",
-      "name": "PathOffset",
-      "title": "차선치우침좌우보정",
-      "descr": "(-)좌측,(+)우측",
-      "min": -200,
-      "max": 200,
-      "default": 0,
-      "unit": 1
-    },
-    {
       "group": "시작",
       "name": "HapticFeedbackWhenSpeedCamera",
       "title": "핸들햅틱기능사용",
