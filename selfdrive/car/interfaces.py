@@ -19,7 +19,7 @@ from common.params import Params
 ButtonType = car.CarState.ButtonEvent.Type
 GearShifter = car.CarState.GearShifter
 EventName = car.CarEvent.EventName
-TorqueFromLateralAccelCallbackType = Callable[[float, car.CarParams.LateralTorqueTuning, float, float, bool], float]
+TorqueFromLateralAccelCallbackType = Callable[[float, car.CarParams.LateralTorqueTuning, float, float, float, bool], float]
 
 MAX_CTRL_SPEED = (V_CRUISE_MAX + 4) * CV.KPH_TO_MS
 ACCEL_MAX = 2.0
@@ -92,14 +92,13 @@ class CarInterfaceBase(ABC):
     return ACCEL_MIN, ACCEL_MAX
 
   @classmethod
-  def get_non_essential_params(cls, candidate: str):
-    """
-    Parameters essential to controlling the car may be incomplete or wrong without FW versions or fingerprints.
-    """
-    return cls.get_params(candidate, gen_empty_fingerprint(), list(), False)
+  def get_params(cls, candidate: str, fingerprint: Optional[Dict[int, Dict[int, int]]] = None, car_fw: Optional[List[car.CarParams.CarFw]] = None, experimental_long: bool = False):
+    if fingerprint is None:
+      fingerprint = gen_empty_fingerprint()
 
-  @classmethod
-  def get_params(cls, candidate: str, fingerprint: Dict[int, Dict[int, int]], car_fw: List[car.CarParams.CarFw], experimental_long: bool):
+    if car_fw is None:
+      car_fw = list()
+
     ret = CarInterfaceBase.get_std_params(candidate)
     ret = cls._get_params(ret, candidate, fingerprint, car_fw, experimental_long)
 
@@ -135,7 +134,7 @@ class CarInterfaceBase(ABC):
     return self.get_steer_feedforward_default
 
   @staticmethod
-  def torque_from_lateral_accel_linear(lateral_accel_value, torque_params, lateral_accel_error, lateral_accel_deadzone, friction_compensation):
+  def torque_from_lateral_accel_linear(lateral_accel_value, torque_params, lateral_accel_error, lateral_accel_deadzone, vego, friction_compensation):
     # The default is a linear relationship between torque and lateral acceleration (accounting for road roll and steering friction)
     friction_interp = interp(
       apply_center_deadzone(lateral_accel_error, lateral_accel_deadzone),
@@ -148,6 +147,30 @@ class CarInterfaceBase(ABC):
   def torque_from_lateral_accel(self) -> TorqueFromLateralAccelCallbackType:
     return self.torque_from_lateral_accel_linear
 
+  @staticmethod
+  def get_torque_params(candidate):
+    with open(TORQUE_SUBSTITUTE_PATH) as f:
+      sub = yaml.load(f, Loader=yaml.Loader)
+    if candidate in sub:
+      candidate = sub[candidate]
+
+    with open(TORQUE_PARAMS_PATH) as f:
+      params = yaml.load(f, Loader=yaml.Loader)
+    with open(TORQUE_OVERRIDE_PATH) as f:
+      override = yaml.load(f, Loader=yaml.Loader)
+
+    # Ensure no overlap
+    if sum([candidate in x for x in [sub, params, override]]) > 1:
+      raise RuntimeError(f'{candidate} is defined twice in torque config')
+
+    if candidate in override:
+      out = override[candidate]
+    elif candidate in params:
+      out = params[candidate]
+    else:
+      raise NotImplementedError(f"Did not find torque params for {candidate}")
+    return {key: out[i] for i, key in enumerate(params['legend'])}
+
   # returns a set of default params to avoid repetition in car specific params
   @staticmethod
   def get_std_params(candidate):
@@ -155,7 +178,7 @@ class CarInterfaceBase(ABC):
     ret.carFingerprint = candidate
 
     # Car docs fields
-    ret.maxLateralAccel = get_torque_params(candidate)['MAX_LAT_ACCEL_MEASURED']
+    ret.maxLateralAccel = CarInterfaceBase.get_torque_params(candidate)['MAX_LAT_ACCEL_MEASURED']
     ret.autoResumeSng = True  # describes whether car can resume from a stop automatically
 
     # standard ALC params
@@ -187,7 +210,7 @@ class CarInterfaceBase(ABC):
 
   @staticmethod
   def configure_torque_tune(candidate, tune, steering_angle_deadzone_deg=0.0, use_steering_angle=True):
-    params = get_torque_params(candidate)
+    params = CarInterfaceBase.get_torque_params(candidate)
 
     tune.init('torque')
     tune.torque.useSteeringAngle = use_steering_angle
@@ -419,15 +442,15 @@ class CarStateBase(ABC):
       return GearShifter.unknown
 
     d: Dict[str, car.CarState.GearShifter] = {
-        'P': GearShifter.park, 'PARK': GearShifter.park,
-        'R': GearShifter.reverse, 'REVERSE': GearShifter.reverse,
-        'N': GearShifter.neutral, 'NEUTRAL': GearShifter.neutral,
-        'E': GearShifter.eco, 'ECO': GearShifter.eco,
-        'T': GearShifter.manumatic, 'MANUAL': GearShifter.manumatic,
-        'D': GearShifter.drive, 'DRIVE': GearShifter.drive,
-        'S': GearShifter.sport, 'SPORT': GearShifter.sport,
-        'L': GearShifter.low, 'LOW': GearShifter.low,
-        'B': GearShifter.brake, 'BRAKE': GearShifter.brake,
+      'P': GearShifter.park, 'PARK': GearShifter.park,
+      'R': GearShifter.reverse, 'REVERSE': GearShifter.reverse,
+      'N': GearShifter.neutral, 'NEUTRAL': GearShifter.neutral,
+      'E': GearShifter.eco, 'ECO': GearShifter.eco,
+      'T': GearShifter.manumatic, 'MANUAL': GearShifter.manumatic,
+      'D': GearShifter.drive, 'DRIVE': GearShifter.drive,
+      'S': GearShifter.sport, 'SPORT': GearShifter.sport,
+      'L': GearShifter.low, 'LOW': GearShifter.low,
+      'B': GearShifter.brake, 'BRAKE': GearShifter.brake,
     }
     return d.get(gear.upper(), GearShifter.unknown)
 

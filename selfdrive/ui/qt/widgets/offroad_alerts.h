@@ -1,12 +1,11 @@
 #pragma once
-
 #include <map>
 
 #include <QLabel>
 #include <QPushButton>
 #include <QVBoxLayout>
 
-#include "common/params.h"
+#include "selfdrive/common/params.h"
 
 class AbstractAlert : public QFrame {
   Q_OBJECT

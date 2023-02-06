@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Dict
+# type: ignore
 
 import cereal.messaging as messaging
 from cereal.services import service_list
@@ -10,7 +10,7 @@ TO_CHECK = ['carState']
 if __name__ == "__main__":
   sm = messaging.SubMaster(TO_CHECK)
 
-  prev_t: Dict[str, float] = {}
+  prev_t = {}
 
   while True:
     sm.update()

@@ -14,15 +14,17 @@ from common.basedir import BASEDIR
 from common.params import Params, ParamKeyType
 from common.text_window import TextWindow
 from selfdrive.boardd.set_time import set_time
-from system.hardware import HARDWARE, PC
+from selfdrive.hardware import HARDWARE, PC, EON
 from selfdrive.manager.helpers import unblock_stdout
 from selfdrive.manager.process import ensure_running, launcher
 from selfdrive.manager.process_config import managed_processes
 from selfdrive.athena.registration import register, UNREGISTERED_DONGLE_ID
-from system.swaglog import cloudlog, add_file_handler
-from system.version import is_dirty, get_commit, get_version, get_origin, get_short_branch, \
-                              terms_version, training_version, is_tested_branch
+from selfdrive.swaglog import cloudlog, add_file_handler
+from selfdrive.version import is_dirty, get_commit, get_version, get_origin, get_short_branch, \
+                              terms_version, training_version
+from selfdrive.hardware.eon.apk import system
 
+sys.path.append(os.path.join(BASEDIR, "pyextra"))
 
 
 def manager_init() -> None:
@@ -30,7 +32,7 @@ def manager_init() -> None:
   set_time(cloudlog)
 
   # save boot log
-  subprocess.call("./bootlog", cwd=os.path.join(BASEDIR, "selfdrive/loggerd"))
+  #subprocess.call("./bootlog", cwd=os.path.join(BASEDIR, "selfdrive/loggerd"))
 
   params = Params()
   params.clear_all(ParamKeyType.CLEAR_ON_MANAGER_START)
@@ -43,15 +45,34 @@ def manager_init() -> None:
     ("LanguageSetting", "main_en"),
     ("OpenpilotEnabledToggle", "1"),
     ("ShowDebugUI", "1"),
+    ("OPKRServer", "0"),
     ("ShowDateTime", "1"),
+    ("ShowHudMode", "1"),
+    ("ShowSteerRotate", "1"),
+    ("ShowPathEnd", "1"),
+    ("ShowAccelRpm", "1"),
+    ("ShowTpms", "1"),
+    ("ShowSteerMode", "1"),
+    ("ShowDeviceState", "1"),
+    ("ShowConnInfo", "1"),
+    ("ShowLaneInfo", "1"),
+    ("ShowBlindSpot", "1"),
+    ("ShowGapInfo", "1"),
     ("AutoResumeFromGas", "1"),
     ("AutoResumeFromGasSpeed", "30"),
     ("AutoResumeFromGasSpeedMode", "0"),    
-    ("AutoCancelFromGas", "0"),    
+    ("AutoCancelFromGasMode", "1"),    
     ("OpkrPrebuiltOn", "0"),
+    ("OPKRTimeZone", "Asia/Seoul"),    
     ("AutoCurveSpeedCtrl", "1"),
     ("AutoCurveSpeedFactor", "100"),
+    ("AutoTurnControl", "0"),
+    ("AutoTurnSpeed", "40"),
+    ("AutoTurnTimeMax", "60"),
+    ("AutoLaneChangeSpeed", "30"),
     ("AutoNaviSpeedCtrl", "1"),
+    ("AutoNaviSpeedCtrlStart", "22"),
+    ("AutoNaviSpeedCtrlEnd", "6"),
     ("AutoRoadLimitCtrl", "0"),
     ("NaviSpeedLimitDecelRate", "50"),
     ("AutoResumeFromBrakeRelease", "1"),
@@ -61,14 +82,14 @@ def manager_init() -> None:
     ("AutoResumeFromBrakeReleaseTrafficSign", "1"),
     ("XEgoObstacleCost", "6"),
     ("JEgoCost", "5"),
-    ("AChangeCost", "150"),
+    ("AChangeCost", "180"),
     ("DangerZoneCost", "100"),
-    ("LeadDangerFactor", "75"),
+    ("LeadDangerFactor", "85"),
     ("LongControlActiveSound", "1"),
     ("AccelLimitEcoSpeed", "3"),
     ("AccelBoost", "100"),
     ("StartAccelApply", "0"),
-    ("StopAccelApply", "0"),
+    ("StopAccelApply", "30"),
     ("TrafficStopDistanceAdjust", "400"),
     ("AutoSpeedUptoRoadSpeedLimit", "100"),
     ("ApplyLongDynamicCost", "0"), 
@@ -81,32 +102,45 @@ def manager_init() -> None:
     ("InitMyDrivingMode", "3"),      
     ("MySafeModeFactor", "80"),      
     ("LiveSteerRatioApply", "100"),      
-    ("MyEcoModeFactor", "80"),      
+    ("MyEcoModeFactor", "80"),  
+    ("CruiseMaxVals1", "200"),
+    ("CruiseMaxVals2", "140"),
+    ("CruiseMaxVals3", "50"),
+    ("CruiseMaxVals4", "20"),
+    ("CruiseMaxVals5", "15"),
+    ("CruiseMaxVals6", "15"),
     ("PrevCruiseGap", "4"),      
+    ("CruiseSpeedMin", "10"),
     ("AutoSyncCruiseSpeedMax", "120"),       
     ("StopDistance", "600"), 
     ("CustomMapbox", "0"),    
-    ("E2eDecelSpeed", "90"),        
+    ("E2eDecelSpeed", "0"),        
     ("LongitudinalTuningKf", "110"),     
     ("LongitudinalTuningKpV", "100"),     
     ("LongitudinalTuningKiV", "0"),     
     ("EnableRadarTracks", "0"),      
     ("EnableAutoEngage", "0"),      
-    ("ApplyDynamicTFollow", "110"), 
+    ("ApplyDynamicTFollow", "105"), 
     ("ApplyDynamicTFollowApart", "95"), 
-    ("ApplyDynamicTFollowDecel", "110"), 
+    ("ApplyDynamicTFollowDecel", "105"), 
     ("SccConnectedBus2", "0"),   
     ("TFollowRatio", "100"),
     ("JerkUpperLowerLimit", "8"),    
     ("KeepEngage", "1"),
-    ("UseLanelines", "0"),    
+    ("UseLaneLineSpeed", "80"),    
     ("PathOffset", "0"),  
+    ("PathCostApply", "100"),
     ("HapticFeedbackWhenSpeedCamera", "0"),       
     ("SoftHoldMode", "1"),       
-    ("SteeringRateCost", "800"),       
+    ("ApplyModelDistOrder", "28"),       
+    ("SteeringRateCost", "700"),       
+    ("LateralMotionCost", "11"),       
     ("LateralAccelCost", "100"),       
+    ("LateralJerkCost", "5"),       
+    ("LateralTestMode", "0"),       
     ("SteerActuatorDelay", "30"),       
     ("SteerActuatorDelayLow", "30"),       
+    ("SteerActuatorDelayMid", "30"),       
     ("SteerDeltaUp", "3"),       
     ("SteerDeltaDown", "7"),       
   ]
@@ -143,7 +177,6 @@ def manager_init() -> None:
   params.put("GitCommit", get_commit(default=""))
   params.put("GitBranch", get_short_branch(default=""))
   params.put("GitRemote", get_origin(default=""))
-  params.put_bool("IsTestedBranch", is_tested_branch())
 
   # set dongle id
   reg_res = register(show_spinner=True)
@@ -161,8 +194,6 @@ def manager_init() -> None:
   sentry.init(sentry.SentryProject.SELFDRIVE)
   cloudlog.bind_global(dongle_id=dongle_id, version=get_version(), dirty=is_dirty(),
                        device=HARDWARE.get_device_type())
-  if os.path.isfile('/data/tmux_error.log'):
-    os.remove('/data/tmux_error.log')
 
 
 def manager_prepare() -> None:
@@ -184,6 +215,10 @@ def manager_cleanup() -> None:
 
 def manager_thread() -> None:
 
+  if EON:
+    Process(name="autoshutdownd", target=launcher, args=("selfdrive.autoshutdownd", "autoshutdownd")).start()
+    system("am startservice com.neokii.optool/.MainService")
+
   Process(name="road_speed_limiter", target=launcher, args=("selfdrive.road_speed_limiter", "road_speed_limiter")).start()
   cloudlog.bind(daemon="manager")
   cloudlog.info("manager start")
@@ -198,17 +233,27 @@ def manager_thread() -> None:
     ignore.append("pandad")
   ignore += [x for x in os.getenv("BLOCK", "").split(",") if len(x) > 0]
 
-  sm = messaging.SubMaster(['deviceState', 'carParams'], poll=['deviceState'])
-  pm = messaging.PubMaster(['managerState'])
+  ensure_running(managed_processes.values(), started=False, not_run=ignore)
 
-  ensure_running(managed_processes.values(), False, params=params, CP=sm['carParams'], not_run=ignore)
+  started_prev = False
+  sm = messaging.SubMaster(['deviceState'])
+  pm = messaging.PubMaster(['managerState'])
 
   print_timer = 0
   while True:
     sm.update()
+    not_run = ignore[:]
 
     started = sm['deviceState'].started
-    ensure_running(managed_processes.values(), started, params=params, CP=sm['carParams'], not_run=ignore)
+    driverview = params.get_bool("IsDriverViewEnabled")
+    ensure_running(managed_processes.values(), started, driverview, not_run)
+
+    # trigger an update after going offroad
+    if started_prev and not started and 'updated' in managed_processes:
+      os.sync()
+      managed_processes['updated'].signal(signal.SIGHUP)
+
+    started_prev = started
 
     running = ' '.join("%s%s\u001b[0m" % ("\u001b[32m" if p.proc.is_alive() else "\u001b[31m", p.name)
                        for p in managed_processes.values() if p.proc)

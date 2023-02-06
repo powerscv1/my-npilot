@@ -10,7 +10,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
-#include "common/queue.h"
+#include "selfdrive/common/queue.h"
 
 // OmxEncoder, lossey codec using hardware hevc
 class OmxEncoder {

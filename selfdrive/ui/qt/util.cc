@@ -8,9 +8,9 @@
 #include <QStyleOption>
 #include <QPainterPath>
 
-#include "common/params.h"
-#include "common/swaglog.h"
-#include "system/hardware/hw.h"
+#include "selfdrive/common/params.h"
+#include "selfdrive/common/swaglog.h"
+#include "selfdrive/hardware/hw.h"
 
 QString getVersion() {
   static QString version =  QString::fromStdString(Params().get("Version"));
@@ -124,6 +124,9 @@ void initApp(int argc, char *argv[]) {
 #endif
 
   setQtSurfaceFormat();
+  if (Hardware::EON()) {
+    QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+  }
 }
 
 void swagLogMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {

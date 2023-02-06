@@ -13,15 +13,16 @@ from selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import LongitudinalMpc
 from selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import T_IDXS as T_IDXS_MPC
 from selfdrive.controls.lib.drive_helpers import V_CRUISE_MAX, CONTROL_N
 from selfdrive.controls.lib.vision_turn_controller import VisionTurnController
-from system.swaglog import cloudlog
+from selfdrive.swaglog import cloudlog
 from common.params import Params
 
 LON_MPC_STEP = 0.2  # first step is 0.2s
+AWARENESS_DECEL = -0.2  # car smoothly decel at .2m/s^2 when user is distracted
 A_CRUISE_MIN = -1.2
 #A_CRUISE_MAX_VALS = [1.6, 1.2, 0.8, 0.6]
 #A_CRUISE_MAX_VALS = [2.0, 1.2, 0.8, 0.6]
 A_CRUISE_MAX_VALS = [2.0, 1.4, 0.5, 0.2, 0.15]
-A_CRUISE_MAX_BP = [0., 40 * CV.KPH_TO_MS, 70 * CV.KPH_TO_MS, 100 * CV.KPH_TO_MS, 140 * CV.KPH_TO_MS]
+A_CRUISE_MAX_BP = [0., 40 * CV.KPH_TO_MS, 60 * CV.KPH_TO_MS, 80 * CV.KPH_TO_MS, 110 * CV.KPH_TO_MS, 140 * CV.KPH_TO_MS]
 
 # Lookup table for turns
 _A_TOTAL_MAX_V = [1.7, 3.2]
@@ -62,22 +63,42 @@ class LongitudinalPlanner:
     self.j_desired_trajectory = np.zeros(CONTROL_N)
     self.solverExecutionTime = 0.0
 
-    self.cruise_source = 'cruise'
-    self.vision_turn_controller = VisionTurnController(CP)
     self.vCluRatio = 1.0
 
     self.accelBoost = 1.0
     self.myEcoModeFactor = 1.0
     self.params_count = 0
+    self.cruiseMaxVals1 = float(int(Params().get("CruiseMaxVals1", encoding="utf8"))) / 100.
+    self.cruiseMaxVals2 = float(int(Params().get("CruiseMaxVals2", encoding="utf8"))) / 100.
+    self.cruiseMaxVals3 = float(int(Params().get("CruiseMaxVals3", encoding="utf8"))) / 100.
+    self.cruiseMaxVals4 = float(int(Params().get("CruiseMaxVals4", encoding="utf8"))) / 100.
+    self.cruiseMaxVals5 = float(int(Params().get("CruiseMaxVals5", encoding="utf8"))) / 100.
+    self.cruiseMaxVals6 = float(int(Params().get("CruiseMaxVals6", encoding="utf8"))) / 100.
+    self.autoTurnControl = int(Params().get("AutoTurnControl", encoding="utf8"))
+
 
   def update_params(self):
     self.params_count = (self.params_count + 1) % 200
-    if (self.params_count % 50) == 0:
+    if self.params_count == 50:
       self.accelBoost = float(int(Params().get("AccelBoost", encoding="utf8"))) / 100.
       self.myEcoModeFactor = float(int(Params().get("MyEcoModeFactor", encoding="utf8"))) / 100.
+    elif self.params_count == 100:
+      self.cruiseMaxVals1 = float(int(Params().get("CruiseMaxVals1", encoding="utf8"))) / 100.
+      self.cruiseMaxVals2 = float(int(Params().get("CruiseMaxVals2", encoding="utf8"))) / 100.
+    elif self.params_count == 130:
+      self.cruiseMaxVals3 = float(int(Params().get("CruiseMaxVals3", encoding="utf8"))) / 100.
+      self.cruiseMaxVals4 = float(int(Params().get("CruiseMaxVals4", encoding="utf8"))) / 100.
+    elif self.params_count == 150:
+      self.cruiseMaxVals5 = float(int(Params().get("CruiseMaxVals5", encoding="utf8"))) / 100.
+      self.cruiseMaxVals6 = float(int(Params().get("CruiseMaxVals6", encoding="utf8"))) / 100.
+      self.autoTurnControl = int(Params().get("AutoTurnControl", encoding="utf8"))
+
     
+  def get_max_accel(self, v_ego):
+    cruiseMaxVals = [self.cruiseMaxVals1, self.cruiseMaxVals2, self.cruiseMaxVals3, self.cruiseMaxVals4, self.cruiseMaxVals5, self.cruiseMaxVals6]
+    return interp(v_ego, A_CRUISE_MAX_BP, cruiseMaxVals)
   @staticmethod
-  def parse_model(model_msg, model_error):
+  def parse_model(model_msg, model_error, v_ego, autoTurnControl):
     if (len(model_msg.position.x) == 33 and
        len(model_msg.velocity.x) == 33 and
        len(model_msg.acceleration.x) == 33):
@@ -92,6 +113,13 @@ class LongitudinalPlanner:
       a = np.zeros(len(T_IDXS_MPC))
       j = np.zeros(len(T_IDXS_MPC))
       y = np.zeros(len(T_IDXS_MPC))
+      
+    if autoTurnControl == 2: # 속도를 줄이자~
+      max_lat_accel = interp(v_ego, [5, 10, 20], [1.5, 2.0, 3.0])
+      curvatures = np.interp(T_IDXS_MPC, T_IDXS, model_msg.orientationRate.z) / np.clip(v, 0.3, 100.0)
+      max_v = np.sqrt(max_lat_accel / (np.abs(curvatures) + 1e-3)) - 2.0
+      v = np.minimum(max_v, v)
+    
     return x, v, a, j, y
 
   def update(self, sm):
@@ -121,20 +149,16 @@ class LongitudinalPlanner:
     # No change cost when user is controlling the speed, or when standstill
     prev_accel_constraint = not (reset_state or sm['carState'].standstill)
 
-    # Get acceleration and active solutions for custom long mpc.
-    self.cruise_source, a_min_sol, v_cruise_sol = self.cruise_solutions(not reset_state, self.v_desired_filter.x,
-                                                                        self.a_desired, v_cruise, sm)
-
     if self.mpc.mode == 'acc':
       #accel_limits = [A_CRUISE_MIN, get_max_accel(v_ego)]      
       if myDrivingMode in [1]: # 연비
-        myMaxAccel = clip(get_max_accel(v_ego)*self.accelBoost*self.myEcoModeFactor, 0, MAX_ACCEL)
+        myMaxAccel = clip(self.get_max_accel(v_ego)*self.accelBoost*self.myEcoModeFactor, 0, MAX_ACCEL)
       elif myDrivingMode in [2]: # 안전
-        myMaxAccel = clip(get_max_accel(v_ego)*self.accelBoost*self.myEcoModeFactor*mySafeModeFactor, 0, MAX_ACCEL)
+        myMaxAccel = clip(self.get_max_accel(v_ego)*self.accelBoost*self.myEcoModeFactor*mySafeModeFactor, 0, MAX_ACCEL)
       elif myDrivingMode in [3,4]: # 일반, 고속
-        myMaxAccel = clip(get_max_accel(v_ego)*self.accelBoost, 0, MAX_ACCEL)
+        myMaxAccel = clip(self.get_max_accel(v_ego)*self.accelBoost, 0, MAX_ACCEL)
       else:
-        myMaxAccel = get_max_accel(v_ego)
+        myMaxAccel = self.get_max_accel(v_ego)
       accel_limits = [A_CRUISE_MIN, myMaxAccel]
       accel_limits_turns = limit_accel_in_turns(v_ego, sm['carState'].steeringAngleDeg, accel_limits, self.CP)
     else:
@@ -145,7 +169,7 @@ class LongitudinalPlanner:
       self.v_desired_filter.x = v_ego
       # Clip aEgo to cruise limits to prevent large accelerations when becoming active
       self.a_desired = clip(sm['carState'].aEgo, accel_limits[0], accel_limits[1])
-
+    
     # Prevent divergence, smooth in current v_ego
     self.v_desired_filter.x = max(0.0, self.v_desired_filter.update(v_ego))
     # Compute model v_ego error
@@ -155,18 +179,20 @@ class LongitudinalPlanner:
     if force_slow_decel:
       v_cruise = 0.0
     # clip limits, cannot init MPC outside of bounds
-    accel_limits_turns[0] = min(accel_limits_turns[0], self.a_desired + 0.05, a_min_sol)
+    accel_limits_turns[0] = min(accel_limits_turns[0], self.a_desired + 0.05)
     accel_limits_turns[1] = max(accel_limits_turns[1], self.a_desired - 0.05)
 
     #self.mpc.set_weights(prev_accel_constraint)
     self.mpc.set_accel_limits(accel_limits_turns[0], accel_limits_turns[1])
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
-    x, v, a, j, y = self.parse_model(sm['modelV2'], self.v_model_error)
+    x, v, a, j, y = self.parse_model(sm['modelV2'], self.v_model_error, v_ego, self.autoTurnControl)
 
-    self.mpc.update(sm['carState'], sm['radarState'], sm['modelV2'], sm['controlsState'], v_cruise_sol, x, v, a, j, y, prev_accel_constraint)
+    self.mpc.update(sm['carState'], sm['radarState'], sm['modelV2'], sm['controlsState'], v_cruise, x, v, a, j, y, prev_accel_constraint)
 
-    self.v_desired_trajectory = np.interp(T_IDXS[:CONTROL_N], T_IDXS_MPC, self.mpc.v_solution)
-    self.a_desired_trajectory = np.interp(T_IDXS[:CONTROL_N], T_IDXS_MPC, self.mpc.a_solution)
+    self.v_desired_trajectory_full = np.interp(T_IDXS, T_IDXS_MPC, self.mpc.v_solution)
+    self.a_desired_trajectory_full = np.interp(T_IDXS, T_IDXS_MPC, self.mpc.a_solution)
+    self.v_desired_trajectory = self.v_desired_trajectory_full[:CONTROL_N]
+    self.a_desired_trajectory = self.a_desired_trajectory_full[:CONTROL_N]
     self.j_desired_trajectory = np.interp(T_IDXS[:CONTROL_N], T_IDXS_MPC[:-1], self.mpc.j_solution)
 
     # TODO counter is only needed because radar is glitchy, remove once radar is gone
@@ -197,12 +223,12 @@ class LongitudinalPlanner:
     longitudinalPlan.fcw = self.fcw
 
     longitudinalPlan.solverExecutionTime = self.mpc.solve_time
-    longitudinalPlan.visionTurnControllerState = self.vision_turn_controller.state
-    longitudinalPlan.visionTurnSpeed = float(self.vision_turn_controller.v_turn)
+    #longitudinalPlan.visionTurnControllerState = self.vision_turn_controller.state
+    #longitudinalPlan.visionTurnSpeed = float(self.vision_turn_controller.v_turn)
 
     longitudinalPlan.debugLongText1 = self.mpc.debugLongText1
     #self.mpc.debugLongText2 = "Vout={:3.2f},{:3.2f},{:3.2f},{:3.2f},{:3.2f}".format(longitudinalPlan.speeds[0]*3.6,longitudinalPlan.speeds[1]*3.6,longitudinalPlan.speeds[2]*3.6,longitudinalPlan.speeds[3]*3.6,longitudinalPlan.speeds[-1]*3.6)
-    self.mpc.debugLongText2 = "VisionTurn:State={},Speed={:.1f}".format(self.vision_turn_controller.state, self.vision_turn_controller.v_turn*3.6)
+    #self.mpc.debugLongText2 = "VisionTurn:State={},Speed={:.1f}".format(self.vision_turn_controller.state, self.vision_turn_controller.v_turn*3.6)
     longitudinalPlan.debugLongText2 = self.mpc.debugLongText2
     longitudinalPlan.trafficState = self.mpc.trafficState
     longitudinalPlan.xState = self.mpc.xState
@@ -212,22 +238,6 @@ class LongitudinalPlanner:
     if self.CP.openpilotLongitudinalControl:
       longitudinalPlan.xCruiseTarget = float(self.mpc.v_cruise / self.vCluRatio)
     else:
-      longitudinalPlan.xCruiseTarget = float(longitudinalPlan.speeds[0] / self.vCluRatio)
+      longitudinalPlan.xCruiseTarget = float(longitudinalPlan.speeds[-1] / self.vCluRatio)
 
     pm.send('longitudinalPlan', plan_send)
-
-  def cruise_solutions(self, enabled, v_ego, a_ego, v_cruise, sm):
-    # Update controllers
-    self.vision_turn_controller.update(enabled, v_ego, a_ego, v_cruise, sm)
-
-    # Pick solution with lowest velocity target.
-    a_solutions = {'cruise': float("inf")}
-    v_solutions = {'cruise': v_cruise}
-
-    if self.vision_turn_controller.is_active:
-      a_solutions['turn'] = self.vision_turn_controller.a_target
-      v_solutions['turn'] = self.vision_turn_controller.v_turn
-
-    source = min(v_solutions, key=v_solutions.get)
-
-    return source, a_solutions[source], v_solutions[source]

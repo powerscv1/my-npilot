@@ -12,7 +12,7 @@
 #include <QPlatformSurfaceEvent>
 #endif
 
-#include "system/hardware/hw.h"
+#include "selfdrive/hardware/hw.h"
 
 const QString ASSET_PATH = ":/";
 

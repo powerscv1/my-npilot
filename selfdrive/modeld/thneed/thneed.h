@@ -12,11 +12,9 @@
 
 #include <CL/cl.h>
 
-#include "msm_kgsl.h"
+#include "selfdrive/modeld/thneed/include/msm_kgsl.h"
 
 using namespace std;
-
-cl_int thneed_clSetKernelArg(cl_kernel kernel, cl_uint arg_index, size_t arg_size, const void *arg_value);
 
 namespace json11 {
   class Json;
@@ -42,6 +40,7 @@ class CLQueuedKernel {
                    const size_t *_global_work_size,
                    const size_t *_local_work_size);
     cl_int exec();
+    uint64_t benchmark();
     void debug_print(bool verbose);
     int get_arg_num(const char *search_arg_name);
     cl_program program;
@@ -90,10 +89,11 @@ class CachedCommand: public CachedIoctl {
 
 class Thneed {
   public:
-    Thneed(bool do_clinit=false, cl_context _context = NULL);
+    Thneed(bool do_clinit=false);
     void stop();
     void execute(float **finputs, float *foutput, bool slow=false);
     void wait();
+    int optimize();
 
     vector<cl_mem> input_clmem;
     vector<void *> inputs;
@@ -106,18 +106,16 @@ class Thneed {
     int context_id;
 
     // protected?
-    bool record = false;
+    bool record;
     int debug;
     int timestamp;
-
-#ifdef QCOM2
     unique_ptr<GPUMalloc> ram;
     vector<unique_ptr<CachedIoctl> > cmds;
     int fd;
-#endif
 
     // all CL kernels
-    void copy_inputs(float **finputs, bool internal=false);
+    void find_inputs_outputs();
+    void copy_inputs(float **finputs);
     void copy_output(float *foutput);
     cl_int clexec();
     vector<shared_ptr<CLQueuedKernel> > kq;
@@ -125,8 +123,9 @@ class Thneed {
     // pending CL kernels
     vector<shared_ptr<CLQueuedKernel> > ckq;
 
-    // loading
+    // loading and saving
     void load(const char *filename);
+    void save(const char *filename, bool save_binaries=false);
   private:
     void clinit();
 };

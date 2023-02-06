@@ -118,15 +118,10 @@ class CarController:
 
     # tester present - w/ no response (keeps relevant ECU disabled)
     if self.frame % 100 == 0 and not (self.CP.flags & HyundaiFlags.CANFD_CAMERA_SCC.value) and self.CP.openpilotLongitudinalControl:
-      # for longitudinal control, either radar or ADAS driving ECU
       addr, bus = 0x7d0, 0
       if self.CP.flags & HyundaiFlags.CANFD_HDA2.value:
         addr, bus = 0x730, 5
       can_sends.append([addr, 0, b"\x02\x3E\x80\x00\x00\x00\x00\x00", bus])
-
-      # for blinkers
-      if self.CP.flags & HyundaiFlags.ENABLE_BLINKERS:
-        can_sends.append([0x7b1, 0, b"\x02\x3E\x80\x00\x00\x00\x00\x00", 5])
 
     # >90 degree steering fault prevention
     # Count up to MAX_ANGLE_FRAMES, at which point we need to cut torque to avoid a steering fault
@@ -138,10 +133,10 @@ class CarController:
     # Cut steer actuation bit for two frames and hold torque with induced temporary fault
     max_angle_frames = MAX_ANGLE_FRAMES - 2 if self.CP.carFingerprint in (CAR.HYUNDAI_GENESIS) else MAX_ANGLE_FRAMES
 
-    torque_fault = CC.latActive and self.angle_limit_counter > max_angle_frames
+    torque_fault = CC.latActive and self.angle_limit_counter > MAX_ANGLE_FRAMES
     lat_active = CC.latActive and not torque_fault
 
-    if self.angle_limit_counter >= max_angle_frames + MAX_ANGLE_CONSECUTIVE_FRAMES:
+    if self.angle_limit_counter >= MAX_ANGLE_FRAMES + MAX_ANGLE_CONSECUTIVE_FRAMES:
       self.angle_limit_counter = 0
 
     # CAN-FD platforms
@@ -159,10 +154,6 @@ class CarController:
       # LFA and HDA icons
       if self.frame % 5 == 0 and (not hda2 or hda2_long):
         can_sends.append(hyundaicanfd.create_lfahda_cluster(self.packer, self.CP, CC.enabled))
-
-      # blinkers
-      if hda2 and self.CP.flags & HyundaiFlags.ENABLE_BLINKERS:
-        can_sends.extend(hyundaicanfd.create_spas_messages(self.packer, self.frame, CC.leftBlinker, CC.rightBlinker))
 
       if self.CP.openpilotLongitudinalControl:
         if hda2:
@@ -236,14 +227,14 @@ class CarController:
                 can_sends.append(hyundaican.create_clu11_button(self.packer, self.frame, CS.clu11, Buttons.RES_ACCEL, self.CP.carFingerprint))
                 #CC.debugTextCC = "BTN:++,T:{:.1f},C:{:.1f}".format(target, current)
 
-      CC.debugTextCC = "230206"
+      CC.debugTextCC = "230218a"
 
       if self.frame % 2 == 0 and self.CP.openpilotLongitudinalControl:
         # TODO: unclear if this is needed
-        startingJerk = 3 #1
+        startingJerk = 1
         if self.CP.carFingerprint in (CAR.KONA, CAR.KONA_EV, CAR.KONA_HEV, CAR.KONA_EV_2022):
           startingJerk = 5
-        jerk = self.jerkUpperLowerLimit if actuators.longControlState in [LongCtrlState.pid,LongCtrlState.starting,LongCtrlState.stopping] else startingJerk  #comma: jerk=3
+        jerk = self.jerkUpperLowerLimit if actuators.longControlState in [LongCtrlState.pid,LongCtrlState.starting,LongCtrlState.stopping] else startingJerk  #comma: jerk=1
         can_sends.extend(hyundaican.create_acc_commands_mix_scc(self.CP, self.packer, CC.enabled, accel, jerk, int(self.frame / 2),
                                                       hud_control, set_speed_in_units, stopping, CC, CS, self.softHoldMode))
 
@@ -266,7 +257,6 @@ class CarController:
 
     new_actuators = actuators.copy()
     new_actuators.steer = apply_steer / self.params.STEER_MAX
-    new_actuators.steerOutputCan = apply_steer
     new_actuators.accel = accel
 
     self.frame += 1

@@ -4,8 +4,8 @@
 #include <string>
 #include <mutex>
 
-#include "cereal/services.h"
-#include "cereal/messaging/messaging.h"
+#include "services.h"
+#include "messaging.h"
 
 const bool SIMULATION = (getenv("SIMULATION") != nullptr) && (std::string(getenv("SIMULATION")) == "1");
 
@@ -51,29 +51,26 @@ struct SubMaster::SubMessage {
   bool updated = false, alive = false, valid = true, ignore_alive;
   uint64_t rcv_time = 0, rcv_frame = 0;
   void *allocated_msg_reader = nullptr;
-  bool is_polled = false;
   capnp::FlatArrayMessageReader *msg_reader = nullptr;
   AlignedBuffer aligned_buf;
   cereal::Event::Reader event;
 };
 
-SubMaster::SubMaster(const std::vector<const char *> &service_list, const std::vector<const char *> &poll,
-                     const char *address, const std::vector<const char *> &ignore_alive) {
+SubMaster::SubMaster(const std::vector<const char *> &service_list, const char *address,
+                     const std::vector<const char *> &ignore_alive) {
   poller_ = Poller::create();
   for (auto name : service_list) {
     const service *serv = get_service(name);
     assert(serv != nullptr);
     SubSocket *socket = SubSocket::create(message_context.context(), name, address ? address : "127.0.0.1", true);
     assert(socket != 0);
-    bool is_polled = inList(poll, name) || poll.empty();
-    if (is_polled) poller_->registerSocket(socket);
+    poller_->registerSocket(socket);
     SubMessage *m = new SubMessage{
       .name = name,
       .socket = socket,
       .freq = serv->frequency,
       .ignore_alive = inList(ignore_alive, name),
-      .allocated_msg_reader = malloc(sizeof(capnp::FlatArrayMessageReader)),
-      .is_polled = is_polled};
+      .allocated_msg_reader = malloc(sizeof(capnp::FlatArrayMessageReader))};
     m->msg_reader = new (m->allocated_msg_reader) capnp::FlatArrayMessageReader({});
     messages_[socket] = m;
     services_[name] = m;
@@ -84,14 +81,6 @@ void SubMaster::update(int timeout) {
   for (auto &kv : messages_) kv.second->updated = false;
 
   auto sockets = poller_->poll(timeout);
-
-  // add non-polled sockets for non-blocking receive
-  for (auto &kv : messages_) {
-    SubMessage *m = kv.second;
-    SubSocket *s = kv.first;
-    if (!m->is_polled) sockets.push_back(s);
-  }
-
   uint64_t current_time = nanos_since_boot();
 
   std::vector<std::pair<std::string, cereal::Event::Reader>> messages;
@@ -116,7 +105,7 @@ void SubMaster::update(int timeout) {
 void SubMaster::update_msgs(uint64_t current_time, const std::vector<std::pair<std::string, cereal::Event::Reader>> &messages){
   if (++frame == UINT64_MAX) frame = 1;
 
-  for (auto &kv : messages) {
+  for(auto &kv : messages) {
     auto m_find = services_.find(kv.first);
     if (m_find == services_.end()){
       continue;
@@ -199,6 +188,7 @@ SubMaster::~SubMaster() {
 
 PubMaster::PubMaster(const std::vector<const char *> &service_list) {
   for (auto name : service_list) {
+      printf("PubMaster %s\n", name);
     assert(get_service(name) != nullptr);
     PubSocket *socket = PubSocket::create(message_context.context(), name);
     assert(socket);

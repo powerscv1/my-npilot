@@ -8,9 +8,9 @@ from collections import deque, defaultdict
 import cereal.messaging as messaging
 from cereal import car, log
 from common.params import Params
-from common.realtime import config_realtime_process, DT_MDL
+from common.realtime import Priority, config_realtime_process, DT_MDL
 from common.filter_simple import FirstOrderFilter
-from system.swaglog import cloudlog
+from selfdrive.swaglog import cloudlog
 from selfdrive.controls.lib.vehicle_model import ACCELERATION_DUE_TO_GRAVITY
 
 HISTORY = 5  # secs
@@ -74,7 +74,10 @@ class PointBuckets:
     return sum(self.bucket_lengths())
 
   def is_valid(self):
+    #print ("buckets=", self.bucket_lengths(), self.__len__())
     return all(len(v) >= min_pts for v, min_pts in zip(self.buckets.values(), self.buckets_min_points.values())) and (self.__len__() >= self.min_points_total)
+  def bucket_lengths_str(self):
+    return ','.join([str(x) for x in self.bucket_lengths()])                   
 
   def add_point(self, x, y):
     for bound_min, bound_max in self.x_bounds:
@@ -155,8 +158,8 @@ class TorqueEstimator:
           cloudlog.info("restored torque params from cache")
       except Exception:
         cloudlog.exception("failed to restore cached torque params")
-        params.remove("LiveTorqueCarParams")
-        params.remove("LiveTorqueParameters")
+        params.delete("LiveTorqueCarParams")
+        params.delete("LiveTorqueParameters")
 
     self.filtered_params = {}
     for param in initial_params:
@@ -241,6 +244,9 @@ class TorqueEstimator:
     else:
       liveTorqueParameters.liveValid = False
 
+    #print(self.filtered_points.bucket_lengths_str())
+    liveTorqueParameters.debugText = self.filtered_points.bucket_lengths_str()
+
     if with_points:
       liveTorqueParameters.points = self.filtered_points.get_points()[:, [0, 2]].tolist()
 
@@ -254,7 +260,7 @@ class TorqueEstimator:
 
 
 def main(sm=None, pm=None):
-  config_realtime_process([0, 1, 2, 3], 5)
+  config_realtime_process(2, Priority.CTRL_LOW)
 
   if sm is None:
     sm = messaging.SubMaster(['carControl', 'carState', 'liveLocationKalman'], poll=['liveLocationKalman'])
@@ -282,11 +288,16 @@ def main(sm=None, pm=None):
 
   while True:
     sm.update()
-    if sm.all_checks():
-      for which in sm.updated.keys():
-        if sm.updated[which]:
-          t = sm.logMonoTime[which] * 1e-9
-          estimator.handle_log(t, which, sm[which])
+#    if sm.all_checks():
+#      for which in sm.updated.keys():
+#        if sm.updated[which]:
+#          t = sm.logMonoTime[which] * 1e-9
+#          estimator.handle_log(t, which, sm[which])
+    for which in sm.updated.keys():
+      if sm.updated[which]:
+        t = sm.logMonoTime[which] * 1e-9
+        estimator.handle_log(t, which, sm[which])
+
 
     # 4Hz driven by liveLocationKalman
     if sm.frame % 5 == 0:

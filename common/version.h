@@ -1,1 +1,0 @@
-#define COMMA_VERSION "APILOT23.02.06"

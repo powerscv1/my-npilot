@@ -6,16 +6,18 @@
 
 #include <QDebug>
 
+#ifndef QCOM
 #include "selfdrive/ui/qt/offroad/networking.h"
+#endif
 
 #ifdef ENABLE_MAPS
 #include "selfdrive/ui/qt/maps/map_settings.h"
 #endif
 
-#include "common/params.h"
-#include "common/watchdog.h"
-#include "common/util.h"
-#include "system/hardware/hw.h"
+#include "selfdrive/common/params.h"
+#include "selfdrive/common/watchdog.h"
+#include "selfdrive/common/util.h"
+#include "selfdrive/hardware/hw.h"
 #include "selfdrive/ui/qt/widgets/controls.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
@@ -31,6 +33,11 @@
 #include <QScroller>
 #include <QListView>
 #include <QListWidget>
+
+#include <QProcess> // opkr
+#include <QDateTime> // opkr
+#include <QTimer> // opkr
+#include <QFileInfo> // opkr
 
 TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
   // param, title, desc, icon, confirm
@@ -138,17 +145,18 @@ void TogglesPanel::showEvent(QShowEvent *event) {
 void TogglesPanel::updateToggles() {
   auto e2e_toggle = toggles["ExperimentalMode"];
   auto op_long_toggle = toggles["ExperimentalLongitudinalEnabled"];
-  const QString e2e_description = QString("%1<br>"
-                                          "<h4>%2</h4><br>"
-                                          "%3<br>"
-                                          "<h4>%4</h4><br>"
-                                          "%5")
-                                  .arg(tr("openpilot defaults to driving in <b>chill mode</b>. Experimental mode enables <b>alpha-level features</b> that aren't ready for chill mode. Experimental features are listed below:"))
-                                  .arg(tr("🌮 End-to-End Longitudinal Control 🌮"))
-                                  .arg(tr("Let the driving model control the gas and brakes. openpilot will drive as it thinks a human would, including stopping for red lights and stop signs. "
-                                       "Since the driving model decides the speed to drive, the set speed will only act as an upper bound. This is an alpha quality feature; mistakes should be expected."))
-                                  .arg(tr("New Driving Visualization"))
-                                  .arg(tr("The driving visualization will transition to the road-facing wide-angle camera at low speeds to better show some turns. The Experimental mode logo will also be shown in the top right corner."));
+  const QString e2e_description = tr("\
+    openpilot defaults to driving in <b>chill mode</b>.\
+    Experimental mode enables <b>alpha-level features</b> that aren't ready for chill mode. \
+    Experimental features are listed below: \
+    <br> \
+    <h4>🌮 End-to-End Longitudinal Control 🌮</h4> \
+    Let the driving model control the gas and brakes. openpilot will drive as it thinks a human would, including stopping for red lights and stop signs. \
+    Since the driving model decides the speed to drive, the set speed will only act as an upper bound. This is an alpha quality feature; mistakes should be expected. \
+    <br> \
+    <h4>New Driving Visualization</h4> \
+    The driving visualization will transition to the road-facing wide-angle camera at low speeds to better show some turns. The Experimental mode logo will also be shown in the top right corner.\
+    ");
 
   auto cp_bytes = params.get("CarParamsPersistent");
   if (!cp_bytes.empty()) {
@@ -263,7 +271,7 @@ DevicePanel::DevicePanel(SettingsWindow *parent) : ListWidget(parent) {
       // put language setting, exit Qt UI, and trigger fast restart
       Params().put("LanguageSetting", langs[selection].toStdString());
       qApp->exit(18);
-      watchdog_kick(0);
+      watchdog_kick();
     }
   });
   addItem(translateBtn);
@@ -371,6 +379,59 @@ void DevicePanel::poweroff() {
   }
 }
 
+C2NetworkPanel::C2NetworkPanel(QWidget *parent) : QWidget(parent) {
+  QVBoxLayout *layout = new QVBoxLayout(this);
+  layout->setContentsMargins(50, 0, 50, 0);
+
+  ListWidget *list = new ListWidget();
+  list->setSpacing(30);
+  // wifi + tethering buttons
+#ifdef QCOM
+  auto wifiBtn = new ButtonControl("Wi-Fi Settings", "OPEN");
+  QObject::connect(wifiBtn, &ButtonControl::clicked, [=]() { HardwareEon::launch_wifi(); });
+  list->addItem(wifiBtn);
+
+  auto tetheringBtn = new ButtonControl("Tethering Settings", "OPEN");
+  QObject::connect(tetheringBtn, &ButtonControl::clicked, [=]() { HardwareEon::launch_tethering(); });
+  list->addItem(tetheringBtn);
+#endif
+  ipaddress = new LabelControl("IP Address", "");
+  list->addItem(ipaddress);
+
+  // SSH key management
+  list->addItem(new SshToggle());
+  list->addItem(new SshControl());
+  layout->addWidget(list);
+  layout->addStretch(1);
+}
+
+void C2NetworkPanel::showEvent(QShowEvent *event) {
+  ipaddress->setText(getIPAddress());
+}
+
+QString C2NetworkPanel::getIPAddress() {
+  std::string result = util::check_output("ifconfig wlan0");
+  if (result.empty()) return "";
+
+  const std::string inetaddrr = "inet addr:";
+  std::string::size_type begin = result.find(inetaddrr);
+  if (begin == std::string::npos) return "";
+
+  begin += inetaddrr.length();
+  std::string::size_type end = result.find(' ', begin);
+  if (end == std::string::npos) return "";
+
+  return result.substr(begin, end - begin).c_str();
+}
+
+QWidget *network_panel(QWidget *parent) {
+#ifdef QCOM
+  return new C2NetworkPanel(parent);
+#else
+  return new Networking(parent);
+#endif
+}
+
 static QStringList get_list(const char* path)
 {
   QStringList stringList;
@@ -448,7 +509,11 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
 
   QList<QPair<QString, QWidget *>> panels = {
     {tr("Device"), device},
+#ifdef QCOM
+    {tr("Network"), new C2NetworkPanel(this)},
+#else
     {tr("Network"), new Networking(this)},
+#endif
     {tr("Toggles"), toggles},
     {tr("Software"), new SoftwarePanel(this)},
     {"크루즈", new CruisePanel(this)},
@@ -474,7 +539,7 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
         color: grey;
         border: none;
         background: none;
-        font-size: 60px;
+        font-size: 55px;
         font-weight: 500;
         padding-top: %1px;
         padding-bottom: %1px;
@@ -501,12 +566,12 @@ SettingsWindow::SettingsWindow(QWidget *parent) : QFrame(parent) {
       panel_widget->setCurrentWidget(w);
     });
   }
-  sidebar_layout->setContentsMargins(50, 50, 100, 50);
+  sidebar_layout->setContentsMargins(5, 50, 10, 50);
 
   // main settings layout, sidebar + main panel
   QHBoxLayout *main_layout = new QHBoxLayout(this);
 
-  sidebar_widget->setFixedWidth(500);
+  sidebar_widget->setFixedWidth(320);
   main_layout->addWidget(sidebar_widget);
   main_layout->addWidget(panel_widget);
 
@@ -610,17 +675,32 @@ CommunityPanel::CommunityPanel(QWidget* parent) : QWidget(parent) {
 
   toggleLayout->addWidget(horizontal_line());
   toggleLayout->addWidget(new CValueControl("AutoNaviSpeedCtrl", "과속카메라작동 방법(2)", "0:사용안함, 1:NDA, 2:NDA + 순정네비게이션", "../assets/offroad/icon_road.png", 0, 2, 1));
+  toggleLayout->addWidget(new CValueControl("AutoNaviSpeedCtrlStart", "과속카메라감속 시작 시간(22초)", "감속시작시점을 설정합니다. 값이 크면 감속을 카메라에서 멀리 시작", "../assets/offroad/icon_road.png", 10, 50, 1));
+  toggleLayout->addWidget(new CValueControl("AutoNaviSpeedCtrlEnd", "과속카메라감속 완료 시간(6초)", "감속완료시점을 설정합니다. 값이 크면 카메라에서 멀리 감속 완료", "../assets/offroad/icon_road.png", 3, 20, 1));
   //toggleLayout->addWidget(new CValueControl("AutoRoadLimitCtrl", "NDA: 속도제한(0:None,1:Limit,2:Apply)", "Limit: 속도를 제한합니다. Apply: 제한속도로 실시간 적용합니다.", "../assets/offroad/icon_road.png", 0, 2, 1));
   toggleLayout->addWidget(new CValueControl("NaviSpeedLimitDecelRate", "차량네비속도제한 감속도(50%)", "거리정보가 없어 감속율로 임시적용합니다.", "../assets/offroad/icon_road.png", 0, 100, 5));
   toggleLayout->addWidget(new CValueControl("LongControlActiveSound", "크루즈 소리 0:OFF,1:Half, 2:ON", "크루즈 소리를 켭니다.", "../assets/offroad/icon_road.png", 0, 2, 1));
   toggleLayout->addWidget(new ParamControl("CustomMapbox", "CustomMapBox입력", "http://IP주소:8082 에 접속하여 mapbox token을 입력하면 자동으로 켜집니다. 끄면, 초기화됩니다.", "../assets/offroad/icon_road.png", this));
-  toggleLayout->addWidget(new ParamControl("ShowDebugUI", "Show Debug UI", "", "../assets/offroad/icon_shell.png", this));
-  toggleLayout->addWidget(new ParamControl("ShowDateTime", "시간정보표시", "", "../assets/offroad/icon_shell.png", this));
   toggleLayout->addWidget(new ParamControl("KeepEngage", "인게이지 유지모드", "", "../assets/offroad/icon_shell.png", this));
-  toggleLayout->addWidget(new ParamControl("UseLanelines", "레인모드사용", "", "../assets/offroad/icon_road.png", this));
+  toggleLayout->addWidget(new CValueControl("UseLaneLineSpeed", "레인모드사용속도", "", "../assets/offroad/icon_road.png", 0, 200, 10));
   toggleLayout->addWidget(new CValueControl("PathOffset", "차선치우침 좌우보정", "(-)좌측, (+)우측", "../assets/offroad/icon_road.png", -200, 200, 1));
   toggleLayout->addWidget(new CValueControl("HapticFeedbackWhenSpeedCamera", "핸들햅틱기능사용", "0:사용안함,1:진동,2:계기판,3:HUD표시", "../assets/offroad/icon_road.png", 0, 3, 1));
   toggleLayout->addWidget(new CValueControl("SoftHoldMode", "소프트오토홀드기능(1)", "0:사용안함,1:사용,2:SCC제어와함께사용(단,사이드가 걸리는 차량이 있음)", "../assets/offroad/icon_road.png", 0, 2, 1));
+  toggleLayout->addWidget(horizontal_line());
+  toggleLayout->addWidget(new CValueControl("ShowHudMode", "화면:표시모드", "0:일반,1:APILOT", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new ParamControl("ShowDebugUI", "화면:디버그정보", "", "../assets/offroad/icon_shell.png", this));
+  toggleLayout->addWidget(new CValueControl("ShowDateTime", "화면:시간정보", "0:표시안함,1:시간/날짜표시,2:시간표시,3:날짜표시", "../assets/offroad/icon_shell.png", 0, 3, 1));
+  toggleLayout->addWidget(new CValueControl("ShowSteerRotate", "화면:핸들회전", "0:안함,1:회전함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new CValueControl("ShowPathEnd", "화면:패스끝표시", "0:안함,1:사용함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new CValueControl("ShowAccelRpm", "화면:가속도표시", "0:안함,1:사용함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new CValueControl("ShowTpms", "화면:TPMS표시", "0:안함,1:사용함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new CValueControl("ShowSteerMode", "화면:핸들표시모드", "0:검정핸들,1:칼라핸들,2:핸들없음", "../assets/offroad/icon_shell.png", 0, 2, 1));
+  toggleLayout->addWidget(new CValueControl("ShowDeviceState", "화면:디바이스상태", "0:안함,1:사용함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new CValueControl("ShowConnInfo", "화면:NDA상태", "0:안함,1:사용함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new CValueControl("ShowLaneInfo", "화면:차선정보", "-1:모두표시안함, 0:패스만, 1:레인만, 2: 로드엣지까지", "../assets/offroad/icon_shell.png", -1, 2, 1));
+  toggleLayout->addWidget(new CValueControl("ShowBlindSpot", "화면:BSD표시", "0:안함,1:사용함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+  toggleLayout->addWidget(new CValueControl("ShowGapInfo", "화면:GAP정보", "0:안함,1:사용함", "../assets/offroad/icon_shell.png", 0, 1, 1));
+
 }
 
 TuningPanel::TuningPanel(QWidget* parent) : QWidget(parent) {
@@ -646,13 +726,18 @@ TuningPanel::TuningPanel(QWidget* parent) : QWidget(parent) {
     toggleLayout->addWidget(new CValueControl("StopDistance", "StopDistance(600cm)", "선행차와 정지하는 거리를 입력합니다.", "../assets/offroad/icon_road.png", 200, 1000, 50));
     toggleLayout->addWidget(new CValueControl("TrafficStopDistanceAdjust", "신호정지 위치 조정(200cm)", "+값으로 하면 정지선에 다가갑니다.", "../assets/offroad/icon_road.png", -1000, 1000, 10));
     toggleLayout->addWidget(horizontal_line());    
-    toggleLayout->addWidget(new CValueControl("LiveSteerRatioApply", "종컨: LiveSteerRatioApply(100)", "", "../assets/offroad/icon_road.png", 50, 110, 1));
-    toggleLayout->addWidget(new CValueControl("SteeringRateCost", "종컨: SteeringRateCost(800)", "", "../assets/offroad/icon_road.png", 10, 2000, 10));
-    toggleLayout->addWidget(new CValueControl("LateralAccelCost", "종컨: LateralAccelCost(100)", "", "../assets/offroad/icon_road.png", 10, 300, 1));
-    toggleLayout->addWidget(new CValueControl("SteerActuatorDelay", "종컨:SteerActuatorDelay(30)", "", "../assets/offroad/icon_road.png", 0, 100, 1));
-    toggleLayout->addWidget(new CValueControl("SteerActuatorDelayLow", "종컨:SteerActuatorDelayLow(30)", "", "../assets/offroad/icon_road.png", 0, 200, 1));
-    toggleLayout->addWidget(new CValueControl("SteerDeltaUp", "종컨: SteerDeltaUp(3)", "", "../assets/offroad/icon_road.png", 1, 20, 1));
-    toggleLayout->addWidget(new CValueControl("SteerDeltaDown", "종컨: SteerDeltaDown(7)", "", "../assets/offroad/icon_road.png", 1, 20, 1));
+    toggleLayout->addWidget(new CValueControl("LiveSteerRatioApply", "횡컨: LiveSteerRatioApply(100)", "", "../assets/offroad/icon_road.png", 50, 110, 1));
+    toggleLayout->addWidget(new CValueControl("SteeringRateCost", "횡컨: SteeringRateCost(800)", "", "../assets/offroad/icon_road.png", 0, 2000, 10));
+    toggleLayout->addWidget(new CValueControl("PathCostApply", "횡컨: PathCostApply(100)", "", "../assets/offroad/icon_road.png", 0, 200, 5));
+    toggleLayout->addWidget(new CValueControl("LateralAccelCost", "횡컨: LateralAccelCost(100)", "", "../assets/offroad/icon_road.png", 0, 300, 1));
+    toggleLayout->addWidget(new CValueControl("LateralMotionCost", "횡컨: LateralMotionCost(11)", "", "../assets/offroad/icon_road.png", 0, 50, 1));
+    toggleLayout->addWidget(new CValueControl("LateralJerkCost", "횡컨: LateralJerkCost(4)", "", "../assets/offroad/icon_road.png", 0, 50, 1));
+    toggleLayout->addWidget(new CValueControl("LateralTestMode", "횡컨: LateralTestMode(0)", "", "../assets/offroad/icon_road.png", 0, 1, 1));
+    toggleLayout->addWidget(new CValueControl("SteerActuatorDelay", "횡컨:SteerActuatorDelay(30)", "표준", "../assets/offroad/icon_road.png", 0, 100, 1));
+    toggleLayout->addWidget(new CValueControl("SteerActuatorDelayMid", "횡컨:SteerActuatorDelayMid(30)", "50km/h", "../assets/offroad/icon_road.png", 0, 200, 1));
+    toggleLayout->addWidget(new CValueControl("SteerActuatorDelayLow", "횡컨:SteerActuatorDelayLow(30)", "0km/h", "../assets/offroad/icon_road.png", 0, 200, 1));
+    toggleLayout->addWidget(new CValueControl("SteerDeltaUp", "횡컨: SteerDeltaUp(3)", "", "../assets/offroad/icon_road.png", 1, 20, 1));
+    toggleLayout->addWidget(new CValueControl("SteerDeltaDown", "횡컨: SteerDeltaDown(7)", "", "../assets/offroad/icon_road.png", 1, 20, 1));
     toggleLayout->addWidget(horizontal_line());
     toggleLayout->addWidget(new CValueControl("JerkUpperLowerLimit", "롱컨: JERK값(8)", "값이 커지면 가감속반응이 빨라지지만, 기분이 안좋음.", "../assets/offroad/icon_road.png", 5, 50, 1));
     toggleLayout->addWidget(new CValueControl("LongitudinalTuningKf", "롱컨: FF게인(110%)", "(시험용) ACCEL을 좀 더 강력하게 적용합니다.", "../assets/offroad/icon_road.png", 100, 120, 1));
@@ -675,15 +760,26 @@ TuningPanel::TuningPanel(QWidget* parent) : QWidget(parent) {
     
     toggleLayout->addWidget(horizontal_line());
     toggleLayout->addWidget(new CValueControl("TrafficStopAccel", "신호정지 감속율 (80%)", "신호를 만나면 서서히 감속하여 정지합니다.", "../assets/offroad/icon_road.png", 10, 120, 10));
+    toggleLayout->addWidget(new CValueControl("ApplyModelDistOrder", "신호정지 감속모델선택 (32)", "숫자가적을수록 미리감속하고 서서히 정지합니다.", "../assets/offroad/icon_road.png", 1, 32, 1));
     //toggleLayout->addWidget(new ParamControl("TrafficStopModelSpeed", "신호정지 모델속도(OFF)", "신호정지시 모델에서 제공하는 속도를 따름니다.", "../assets/offroad/icon_road.png", this));
     toggleLayout->addWidget(new CValueControl("E2eDecelSpeed", "모델의 자동속도 적용(90)", "지정속도 이하에서는 모델이 제공하는 속도를 적용합니다. 0: 적용안함.", "../assets/offroad/icon_road.png", 0, 120, 10));
     toggleLayout->addWidget(horizontal_line());
     //toggleLayout->addWidget(new CValueControl("AccelLimitEcoSpeed", "초기가속제한 속도(3km/h)", "지정속도까지 가속도를 제한합니다. 출발시 충격 방지!!", "../assets/offroad/icon_road.png", 0, 100, 1));
     //toggleLayout->addWidget(new ParamControl("AccelLimitConfusedModel", "모델혼잡시 조향가속비율적용(ON)", "E2E모드에서 모델예측이 20M이내인경우 가속을 제한합니다.", "../assets/offroad/icon_road.png", this));
-    toggleLayout->addWidget(new CValueControl("AccelBoost", "가속도 제어(100%)", "가속도를 제어합니다.", "../assets/offroad/icon_road.png", 50, 200, 1));
+    toggleLayout->addWidget(new CValueControl("AccelBoost", "가속도 제어(100%)", "가속도를 제어합니다.(x0.01m/s^2)", "../assets/offroad/icon_road.png", 50, 200, 1));
+    toggleLayout->addWidget(new CValueControl("CruiseMaxVals1", "가속설정:0km/h(200)", "속도별 가속도를 지정합니다.(x0.01m/s^2)", "../assets/offroad/icon_road.png", 1, 300, 5));
+    toggleLayout->addWidget(new CValueControl("CruiseMaxVals2", "가속설정:40km/h(150)", "속도별 가속도를 지정합니다.(x0.01m/s^2)", "../assets/offroad/icon_road.png", 1, 300, 5));
+    toggleLayout->addWidget(new CValueControl("CruiseMaxVals3", "가속설정:60km/h(50)", "속도별 가속도를 지정합니다.(x0.01m/s^2)", "../assets/offroad/icon_road.png", 1, 300, 5));
+    toggleLayout->addWidget(new CValueControl("CruiseMaxVals4", "가속설정:80km/h(20)", "속도별 가속도를 지정합니다.(x0.01m/s^2)", "../assets/offroad/icon_road.png", 1, 300, 5));
+    toggleLayout->addWidget(new CValueControl("CruiseMaxVals5", "가속설정:110km/h(15)", "속도별 가속도를 지정합니다.(x0.01m/s^2)", "../assets/offroad/icon_road.png", 1, 300, 5));
+    toggleLayout->addWidget(new CValueControl("CruiseMaxVals6", "가속설정:140km/h(15)", "속도별 가속도를 지정합니다.(x0.01m/s^2)", "../assets/offroad/icon_road.png", 1, 300, 5));
     toggleLayout->addWidget(horizontal_line());
     toggleLayout->addWidget(new CValueControl("AutoCurveSpeedCtrl", "모델커브속도조절(1)", "곡선도로를 만나면 속도를 줄여줍니다. 0:사용안함,1:방법1,2:방법2", "../assets/offroad/icon_road.png", 0, 2, 1));
     toggleLayout->addWidget(new CValueControl("AutoCurveSpeedFactor", "모델커브속도조절비율(100%)", "커브속도조절(커브속도 조절 2일때 적용)", "../assets/offroad/icon_road.png", 50, 150, 1));
+    toggleLayout->addWidget(new CValueControl("AutoTurnControl", "자동모델턴제어", "저속 깜박이시 DESIRE제어", "../assets/offroad/icon_road.png", 0, 2, 1));
+    toggleLayout->addWidget(new CValueControl("AutoTurnSpeed", "자동모델턴제어:속도", "해당속도이하에서 자동턴시작", "../assets/offroad/icon_road.png", 2, 60, 5));
+    toggleLayout->addWidget(new CValueControl("AutoTurnTimeMax", "자동모델턴제어:시간제한", "자동턴 시간제한 설정", "../assets/offroad/icon_road.png", 30, 240, 5));
+    toggleLayout->addWidget(new CValueControl("AutoLaneChangeSpeed", "자동차선변경:속도", "해당속도 이상에서만 자동차선변경", "../assets/offroad/icon_road.png", 5, 60, 5));
 
 }
 CruisePanel::CruisePanel(QWidget* parent) : QWidget(parent) {
@@ -715,11 +811,12 @@ CruisePanel::CruisePanel(QWidget* parent) : QWidget(parent) {
     toggleLayout->addWidget(new CValueControl("CruiseButtonMode", "크루즈버튼작동모드", "0:일반속도제어,1:사용자속도제어1, 2:사용자속도제어2, 3:사용자속도제어3, 4:사용자속도제어4", "../assets/offroad/icon_road.png", 0, 4, 1));
     toggleLayout->addWidget(new CValueControl("GapButtonMode", "크루즈갭버튼작동모드", "0:1,2,3,4(오토),1:1,2,3,4(오토),5(크루즈OFF),2:4(오토),5(크루즈OFF),3:크루즈ON/OFF(갭오토)", "../assets/offroad/icon_road.png", 0, 3, 1));
     toggleLayout->addWidget(new CValueControl("PrevCruiseGap", "크루즈갭 :초기값(4)", "4: 자동", "../assets/offroad/icon_road.png", 1, 4, 1));
+    toggleLayout->addWidget(new CValueControl("CruiseSpeedMin", "크루즈 최저속도(10)", "크루즈제어의 최저속도", "../assets/offroad/icon_road.png", 5, 50, 1));
     toggleLayout->addWidget(horizontal_line());
     toggleLayout->addWidget(new ParamControl("AutoResumeFromGas", "엑셀 크루즈ON 사용", "엑셀밟으면 크루즈를 켭니다. 60%이상 밟으면 크루즈를 켭니다.", "../assets/offroad/icon_road.png", this));
     toggleLayout->addWidget(new CValueControl("AutoResumeFromGasSpeed", "엑셀 크루즈ON:속도", "설정속도이상이 되면 자동으로 크루즈를 켭니다.", "../assets/offroad/icon_road.png", 20, 140, 5));
     toggleLayout->addWidget(new CValueControl("AutoResumeFromGasSpeedMode", "엑셀 크루즈ON:속도복원설정(0)", "0:현재속도, 1:이전속도, 2: 선행차량이 있을때만 이전속도", "../assets/offroad/icon_road.png", 0, 2, 1));
-    toggleLayout->addWidget(new CValueControl("AutoCancelFromGas", "엑셀 크루즈OFF:속도", "설정속도이하에서 엑셀을 밟으면 크루즈가 해제됩니다.", "../assets/offroad/icon_road.png", 0, 140, 1));
+    toggleLayout->addWidget(new CValueControl("AutoCancelFromGasMode", "엑셀 크루즈OFF:모드", "엑셀크루즈ON속도 이하에서 엑셀을 밟으면 크루즈가 해제됩니다. 1:항상, 2:레이더OFF시에만", "../assets/offroad/icon_road.png", 0, 140, 1));
     toggleLayout->addWidget(horizontal_line());
     toggleLayout->addWidget(new ParamControl("AutoResumeFromBrakeRelease", "브레이크해제 크루즈ON 사용", "브레이크를 떼면 크르즈를 켭니다.", "../assets/offroad/icon_road.png", this));
     toggleLayout->addWidget(new CValueControl("AutoResumeFromBrakeReleaseDist", "브레이크해제 크루즈ON:주행중,선행차", "0:사용안함. 브레이크를 떼고, 선행차가 일정 거리이상이면 크루즈를 켭니다.", "../assets/offroad/icon_road.png", 0, 80, 5));
@@ -798,6 +895,86 @@ CValueControl::CValueControl(const QString& params, const QString& title, const 
     });
     refresh();
 }
+TimeZoneSelectCombo::TimeZoneSelectCombo() : AbstractControl("TZ", "", "../assets/offroad/icon_shell.png") 
+{
+  combobox.setStyleSheet(R"(
+    subcontrol-origin: padding;
+    subcontrol-position: top left;
+    selection-background-color: #111;
+    selection-color: yellow;
+    color: white;
+    background-color: #393939;
+    border-style: solid;
+    border: 0px solid #1e1e1e;
+    border-radius: 0;
+    width: 100px;
+  )");
+
+  combobox.addItem(tr("Select Your TimeZone"));
+  QFile timezonelistfile("/data/openpilot/selfdrive/assets/addon/param/TimeZone");
+  if (timezonelistfile.open(QIODevice::ReadOnly)) {
+    QTextStream timezonename(&timezonelistfile);
+    while (!timezonename.atEnd()) {
+      QString line = timezonename.readLine();
+      combobox.addItem(line);
+    }
+    timezonelistfile.close();
+  }
+
+  combobox.setFixedWidth(950);
+
+  btn.setStyleSheet(R"(
+    padding: 0;
+    border-radius: 50px;
+    font-size: 35px;
+    font-weight: 500;
+    color: #E4E4E4;
+    background-color: #393939;
+  )");
+
+  btn.setFixedSize(150, 100);
+
+  QObject::connect(&btn, &QPushButton::clicked, [=]() {
+    if (btn.text() == tr("UNSET")) {
+      if (ConfirmationDialog::confirm(tr("Do you want to set default?"), tr("Reboot"), this)) {
+        params.put("OPKRTimeZone", "UTC");
+        combobox.setCurrentIndex(0);
+        refresh();
+      }
+    }
+  });
+
+  //combobox.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+  hlayout->addWidget(&combobox, Qt::AlignLeft);
+  hlayout->addWidget(&btn, Qt::AlignRight);
+
+  QObject::connect(&combobox, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated), [=](int index)
+  {
+    combobox.itemData(combobox.currentIndex());
+    QString str = combobox.currentText();
+    if (combobox.currentIndex() != 0) {
+      if (ConfirmationDialog::confirm(tr("Press OK to set your timezone as") + "\n" + str, tr("Reboot"), this)) {
+        params.put("OPKRTimeZone", str.toStdString());
+      }
+    }
+    refresh();
+  });
+  refresh();
+}
+
+void TimeZoneSelectCombo::refresh() {
+  QString selected_timezonename = QString::fromStdString(params.get("OPKRTimeZone"));
+  int index = combobox.findText(selected_timezonename);
+  if (index >= 0) combobox.setCurrentIndex(index);
+  if (selected_timezonename.length()) {
+    btn.setEnabled(true);
+    btn.setText(tr("UNSET"));
+  } else {
+    btn.setEnabled(false);
+    btn.setText(tr("SET"));
+  }
+}
 
 void CValueControl::refresh()
 {
@@ -848,7 +1025,9 @@ SelectCar::SelectCar(QWidget* parent): QWidget(parent) {
   list->addItem(tr("[ Not selected ]"));
 
   QStringList items = get_list("/data/params/d/SupportedCars");
+  QStringList items_gm = get_list("/data/params/d/SupportedCars_gm");
   list->addItems(items);
+  list->addItems(items_gm);
   list->setCurrentRow(0);
 
   QString selected = QString::fromStdString(Params().get("SelectedCar"));

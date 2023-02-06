@@ -4,19 +4,21 @@ import os
 import usb1
 import time
 import subprocess
-from typing import List, NoReturn
+from typing import NoReturn
 from functools import cmp_to_key
 
-from panda import Panda, PandaDFU
+from common.spinner import Spinner
+from panda import DEFAULT_FW_FN, DEFAULT_H7_FW_FN, MCU_TYPE_H7, Panda, PandaDFU
 from common.basedir import BASEDIR
 from common.params import Params
-from system.hardware import HARDWARE
-from system.swaglog import cloudlog
+from selfdrive.swaglog import cloudlog
 
 
 def get_expected_signature(panda: Panda) -> bytes:
+  fn = DEFAULT_H7_FW_FN if (panda.get_mcu_type() == MCU_TYPE_H7) else DEFAULT_FW_FN
+
   try:
-    return Panda.get_signature_from_firmware(panda.get_mcu_type().config.app_path)
+    return Panda.get_signature_from_firmware(fn)
   except Exception:
     cloudlog.exception("Error computing expected signature")
     return b""
@@ -26,7 +28,6 @@ def flash_panda(panda_serial: str) -> Panda:
   panda = Panda(panda_serial)
 
   fw_signature = get_expected_signature(panda)
-  internal_panda = panda.is_internal() and not panda.bootstub
 
   panda_version = "bootstub" if panda.bootstub else panda.get_version()
   panda_signature = b"" if panda.bootstub else panda.get_signature()
@@ -40,9 +41,7 @@ def flash_panda(panda_serial: str) -> Panda:
   if panda.bootstub:
     bootstub_version = panda.get_version()
     cloudlog.info(f"Flashed firmware not booting, flashing development bootloader. Bootstub version: {bootstub_version}")
-    if internal_panda:
-      HARDWARE.recover_internal_panda()
-    panda.recover(reset=(not internal_panda))
+    panda.recover()
     cloudlog.info("Done flashing bootloader")
 
   if panda.bootstub:
@@ -81,7 +80,7 @@ def main() -> NoReturn:
 
   while True:
     try:
-      params.remove("PandaSignatures")
+      params.delete("PandaSignatures")
 
       # Flash all Pandas in DFU mode
       for p in PandaDFU.list():
@@ -91,16 +90,12 @@ def main() -> NoReturn:
 
       panda_serials = Panda.list()
       if len(panda_serials) == 0:
-        if first_run:
-          cloudlog.info("Resetting internal panda")
-          HARDWARE.reset_internal_panda()
-          time.sleep(2)  # wait to come back up
         continue
 
       cloudlog.info(f"{len(panda_serials)} panda(s) found, connecting - {panda_serials}")
 
       # Flash pandas
-      pandas: List[Panda] = []
+      pandas = []
       for serial in panda_serials:
         pandas.append(flash_panda(serial))
 
@@ -111,13 +106,13 @@ def main() -> NoReturn:
           params.put_bool("PandaHeartbeatLost", True)
           cloudlog.event("heartbeat lost", deviceState=health, serial=panda.get_usb_serial())
 
-        if first_run:
-          cloudlog.info(f"Resetting panda {panda.get_usb_serial()}")
-          panda.reset()
+        #if first_run:
+        #  cloudlog.info(f"Resetting panda {panda.get_usb_serial()}")
+        #  panda.reset()
 
       # sort pandas to have deterministic order
       pandas.sort(key=cmp_to_key(panda_sort_cmp))
-      panda_serials = list(map(lambda p: p.get_usb_serial(), pandas))  # type: ignore
+      panda_serials = list(map(lambda p: p.get_usb_serial(), pandas))
 
       # log panda fw versions
       params.put("PandaSignatures", b','.join(p.get_signature() for p in pandas))

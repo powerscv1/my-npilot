@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from cereal import car
-from system.swaglog import cloudlog
+from selfdrive.swaglog import cloudlog
 import cereal.messaging as messaging
 from selfdrive.car import get_safety_config
 from selfdrive.car.interfaces import CarInterfaceBase

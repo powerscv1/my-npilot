@@ -6,7 +6,7 @@
 #include <QPainter>
 #include <QPushButton>
 
-#include "common/params.h"
+#include "selfdrive/common/params.h"
 #include "selfdrive/ui/qt/widgets/input.h"
 #include "selfdrive/ui/qt/widgets/toggle.h"
 

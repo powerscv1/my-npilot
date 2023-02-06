@@ -12,9 +12,9 @@
 #include <QJsonDocument>
 #include <QNetworkRequest>
 
-#include "common/params.h"
-#include "common/util.h"
-#include "system/hardware/hw.h"
+#include "selfdrive/common/params.h"
+#include "selfdrive/common/util.h"
+#include "selfdrive/hardware/hw.h"
 #include "selfdrive/ui/qt/util.h"
 
 namespace CommaApi {

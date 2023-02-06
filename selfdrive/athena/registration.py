@@ -3,7 +3,6 @@ import time
 import json
 import jwt
 from pathlib import Path
-from typing import Optional
 
 from datetime import datetime, timedelta
 from common.api import api_get
@@ -11,8 +10,8 @@ from common.params import Params
 from common.spinner import Spinner
 from common.basedir import PERSIST
 from selfdrive.controls.lib.alertmanager import set_offroad_alert
-from system.hardware import HARDWARE, PC
-from system.swaglog import cloudlog
+from selfdrive.hardware import HARDWARE, PC
+from selfdrive.swaglog import cloudlog
 
 
 UNREGISTERED_DONGLE_ID = "UnregisteredDevice"
@@ -23,13 +22,13 @@ def is_registered_device() -> bool:
   return dongle not in (None, UNREGISTERED_DONGLE_ID)
 
 
-def register(show_spinner=False) -> Optional[str]:
+def register(show_spinner=False) -> str:
   params = Params()
   params.put("SubscriberInfo", HARDWARE.get_subscriber_info())
 
   IMEI = params.get("IMEI", encoding='utf8')
   HardwareSerial = params.get("HardwareSerial", encoding='utf8')
-  dongle_id: Optional[str] = params.get("DongleId", encoding='utf8')
+  dongle_id = params.get("DongleId", encoding='utf8')
   needs_registration = None in (IMEI, HardwareSerial, dongle_id)
 
   pubkey = Path(PERSIST+"/comma/id_rsa.pub")
@@ -49,8 +48,7 @@ def register(show_spinner=False) -> Optional[str]:
     # Block until we get the imei
     serial = HARDWARE.get_serial()
     start_time = time.monotonic()
-    imei1: Optional[str] = None
-    imei2: Optional[str] = None
+    imei1, imei2 = None, None
     while imei1 is None and imei2 is None:
       try:
         imei1, imei2 = HARDWARE.get_imei(0), HARDWARE.get_imei(1)
@@ -66,7 +64,10 @@ def register(show_spinner=False) -> Optional[str]:
 
     backoff = 0
     start_time = time.monotonic()
-    while True:
+    
+    dongle_id = UNREGISTERED_DONGLE_ID
+    
+    while False:
       try:
         register_token = jwt.encode({'register': True, 'exp': datetime.utcnow() + timedelta(hours=1)}, private_key, algorithm='RS256')
         cloudlog.info("getting pilotauth")
@@ -93,7 +94,7 @@ def register(show_spinner=False) -> Optional[str]:
 
   if dongle_id:
     params.put("DongleId", dongle_id)
-    set_offroad_alert("Offroad_UnofficialHardware", (dongle_id == UNREGISTERED_DONGLE_ID) and not PC)
+    #set_offroad_alert("Offroad_UnofficialHardware", (dongle_id == UNREGISTERED_DONGLE_ID) and not PC)
   return dongle_id
 
 

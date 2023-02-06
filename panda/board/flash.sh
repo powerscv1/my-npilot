@@ -2,4 +2,4 @@
 set -e
 
 scons -u -j$(nproc)
-printf %b 'from python import Panda\nfor serial in Panda.list(): Panda(serial).flash()' | PYTHONPATH=.. python3
+PYTHONPATH=.. python3 -c "from python import Panda; Panda().flash('obj/panda.bin.signed')"

@@ -7,7 +7,7 @@ import cereal.messaging as messaging
 from panda.python.uds import SERVICE_TYPE
 from selfdrive.car import make_can_msg
 from selfdrive.boardd.boardd import can_list_to_can_capnp
-from system.swaglog import cloudlog
+from selfdrive.swaglog import cloudlog
 
 
 def make_tester_present_msg(addr, bus, subaddr=None):
@@ -87,5 +87,5 @@ if __name__ == "__main__":
   for addr, subaddr, bus in ecu_addrs:
     msg = f"  0x{hex(addr)}"
     if subaddr is not None:
-      msg += f" (sub-address: {hex(subaddr)})"
+      msg += f" (sub-address: 0x{hex(subaddr)})"
     print(msg)

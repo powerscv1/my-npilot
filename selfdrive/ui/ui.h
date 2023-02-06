@@ -12,18 +12,31 @@
 #include <QTransform>
 
 #include "cereal/messaging/messaging.h"
-#include "common/modeldata.h"
-#include "common/params.h"
-#include "common/timing.h"
+#include "selfdrive/common/modeldata.h"
+#include "selfdrive/common/params.h"
+#include "selfdrive/common/timing.h"
 
-const int bdr_s = 30;
+const int bdr_s = 20;
 const int header_h = 420;
 const int footer_h = 280;
 
-const int UI_FREQ = 20; // Hz
+const int UI_FREQ = 20;   // Hz
 typedef cereal::CarControl::HUDControl::AudibleAlert AudibleAlert;
 
-const mat3 DEFAULT_CALIBRATION = {{ 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0 }};
+// TODO: this is also hardcoded in common/transformations/camera.py
+// TODO: choose based on frame input size
+const float y_offset = Hardware::EON() ? 0.0 : 150.0;
+const float ZOOM = Hardware::EON() ? 2138.5 : 2912.8;
+
+const vec3 default_face_kpts_3d[] = {
+  {-5.98, -51.20, 8.00}, {-17.64, -49.14, 8.00}, {-23.81, -46.40, 8.00}, {-29.98, -40.91, 8.00}, {-32.04, -37.49, 8.00},
+  {-34.10, -32.00, 8.00}, {-36.16, -21.03, 8.00}, {-36.16, 6.40, 8.00}, {-35.47, 10.51, 8.00}, {-32.73, 19.43, 8.00},
+  {-29.30, 26.29, 8.00}, {-24.50, 33.83, 8.00}, {-19.01, 41.37, 8.00}, {-14.21, 46.17, 8.00}, {-12.16, 47.54, 8.00},
+  {-4.61, 49.60, 8.00}, {4.99, 49.60, 8.00}, {12.53, 47.54, 8.00}, {14.59, 46.17, 8.00}, {19.39, 41.37, 8.00},
+  {24.87, 33.83, 8.00}, {29.67, 26.29, 8.00}, {33.10, 19.43, 8.00}, {35.84, 10.51, 8.00}, {36.53, 6.40, 8.00},
+  {36.53, -21.03, 8.00}, {34.47, -32.00, 8.00}, {32.42, -37.49, 8.00}, {30.36, -40.91, 8.00}, {24.19, -46.40, 8.00},
+  {18.02, -49.14, 8.00}, {6.36, -51.20, 8.00}, {-5.98, -51.20, 8.00},
+};
 
 struct Alert {
   QString text1;
@@ -79,7 +92,7 @@ typedef enum UIStatus {
 } UIStatus;
 
 const QColor bg_colors [] = {
-  [STATUS_DISENGAGED] = QColor(0x17, 0x33, 0x49, 0xc8),
+  [STATUS_DISENGAGED] =  QColor(0x17, 0x33, 0x49, 0xc8),
   [STATUS_OVERRIDE] = QColor(0x91, 0x9b, 0x95, 0xf1),
   [STATUS_ENGAGED] = QColor(0x17, 0x86, 0x44, 0xf1),
   [STATUS_WARNING] = QColor(0xDA, 0x6F, 0x25, 0xf1),
@@ -93,26 +106,28 @@ typedef struct {
 } line_vertices_data;
 
 typedef struct UIScene {
-  bool calibration_valid = false;
-  bool calibration_wide_valid  = false;
-  bool wide_cam = true;
-  mat3 view_from_calib = DEFAULT_CALIBRATION;
-  mat3 view_from_wide_calib = DEFAULT_CALIBRATION;
+  mat3 view_from_calib;
   cereal::PandaState::PandaType pandaType;
 
   // modelV2
   float lane_line_probs[4];
   float road_edge_stds[2];
-  line_vertices_data track_vertices;
-  line_vertices_data lane_line_vertices[4];
-  line_vertices_data road_edge_vertices[2];
-  line_vertices_data lane_barrier_vertices[2];
+  QPolygonF track_vertices;
+  QPolygonF lane_line_vertices[4];
+  QPolygonF road_edge_vertices[2];
+  QPolygonF lane_barrier_vertices[2];
 
   // lead
   QPointF lead_vertices[2];
   bool lead_radar[2] = {false, false};
+  // DMoji state
+  float driver_pose_vals[3];
+  float driver_pose_diff[3];
+  float driver_pose_sins[3];
+  float driver_pose_coss[3];
+  vec3 face_kpts_draw[std::size(default_face_kpts_3d)];
 
-  float light_sensor;
+  float light_sensor, accel_sensor, gyro_sensor;
   bool started, ignition, is_metric, map_on_left, longitudinal_control;
   uint64_t started_frame;
   cereal::DeviceState::Reader deviceState;
@@ -144,9 +159,20 @@ public:
   QString language;
 
   QTransform car_space_transform;
-  bool wide_cam_only;
+  bool wide_camera;
   bool show_debug = false;
-  bool show_datetime = false;
+  int show_datetime = 1;
+  bool show_tpms = true;
+  bool show_accel = true;
+  bool show_steer_rotate = true;
+  bool show_path_end = true;
+  int show_steer_mode = 0;
+  bool show_device_stat = true;
+  bool show_conn_info = true;
+  int  show_lane_info = 2;
+  bool show_blind_spot = true;
+  bool show_gap_info = true;
+  int show_mode = 1;
 
 signals:
   void uiUpdate(const UIState &s);
@@ -165,6 +191,7 @@ private:
 UIState *uiState();
 
 // device management class
+
 class Device : public QObject {
   Q_OBJECT
 
@@ -172,6 +199,9 @@ public:
   Device(QObject *parent = 0);
 
 private:
+  // auto brightness
+  const float accel_samples = 5*UI_FREQ;
+
   bool awake = false;
   int interactive_timeout = 0;
   bool ignition_on = false;
@@ -194,8 +224,11 @@ public slots:
 };
 
 void ui_update_params(UIState *s);
-int get_path_length_idx(const cereal::ModelDataV2::XYZTData::Reader &line, const float path_height);
-void update_model(UIState *s, const cereal::ModelDataV2::Reader &model);
-void update_leads(UIState *s, const cereal::RadarState::Reader &radar_state, const cereal::ModelDataV2::XYZTData::Reader &line);
-void update_line_data(const UIState *s, const cereal::ModelDataV2::XYZTData::Reader &line,
+int get_path_length_idx(const cereal::XYZTData::Reader &line, const float path_height);
+void update_model(UIState *s,
+                  const cereal::ModelDataV2::Reader &model,
+                  const cereal::UiPlan::Reader &plan);
+void update_dmonitoring(UIState *s, const cereal::DriverState::Reader &driverstate, float dm_fade_state);
+void update_leads(UIState *s, const cereal::RadarState::Reader &radar_state, const cereal::XYZTData::Reader &line);
+void update_line_data(const UIState *s, const cereal::XYZTData::Reader &line,
                       float y_off, float z_off, QPolygonF *pvd, int max_idx, bool allow_invert);

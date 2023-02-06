@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import argparse
-import pandas as pd
+import pandas as pd  # pylint: disable=import-error
 
 import cereal.messaging as messaging
 

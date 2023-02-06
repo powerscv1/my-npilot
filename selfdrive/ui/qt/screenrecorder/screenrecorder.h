@@ -40,6 +40,7 @@ private:
 
   void applyColor();
 
+#ifdef QCOM2
   std::unique_ptr<OmxEncoder> encoder;
   std::unique_ptr<uint8_t[]> rgb_buffer;
   std::unique_ptr<uint8_t[]> rgb_scale_buffer;
@@ -50,6 +51,7 @@ private:
   void encoding_thread_func();
   void openEncoder(const char* filename);
   void closeEncoder();
+#endif
 
 public:
     void start(bool sound);

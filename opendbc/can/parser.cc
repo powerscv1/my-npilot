@@ -8,8 +8,8 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#include "cereal/logger/logger.h"
-#include "opendbc/can/common.h"
+#include "common.h"
+
 
 int64_t get_raw_value(const std::vector<uint8_t> &msg, const Signal &sig) {
   int64_t ret = 0;
@@ -21,7 +21,7 @@ int64_t get_raw_value(const std::vector<uint8_t> &msg, const Signal &sig) {
     int msb = (int)(sig.msb / 8) == i ? sig.msb : (i+1)*8 - 1;
     int size = msb - lsb + 1;
 
-    uint64_t d = (msg[i] >> (lsb - (i*8))) & ((1ULL << size) - 1);
+    uint8_t d = (msg[i] >> (lsb - (i*8))) & ((1ULL << size) - 1);
     ret |= d << (bits - size);
 
     bits -= size;
@@ -32,6 +32,7 @@ int64_t get_raw_value(const std::vector<uint8_t> &msg, const Signal &sig) {
 
 
 bool MessageState::parse(uint64_t sec, const std::vector<uint8_t> &dat) {
+
   for (int i = 0; i < parse_sigs.size(); i++) {
     auto &sig = parse_sigs[i];
 
@@ -44,20 +45,30 @@ bool MessageState::parse(uint64_t sec, const std::vector<uint8_t> &dat) {
 
     bool checksum_failed = false;
     if (!ignore_checksum) {
-      if (sig.calc_checksum != nullptr && sig.calc_checksum(address, sig, dat) != tmp) {
+      if (sig.type == SignalType::HONDA_CHECKSUM && honda_checksum(address, dat) != tmp) {
+        checksum_failed = true;
+      } else if (sig.type == SignalType::TOYOTA_CHECKSUM && toyota_checksum(address, dat) != tmp) {
+        checksum_failed = true;
+      } else if (sig.type == SignalType::VOLKSWAGEN_CHECKSUM && volkswagen_crc(address, dat) != tmp) {
+        checksum_failed = true;
+      } else if (sig.type == SignalType::SUBARU_CHECKSUM && subaru_checksum(address, dat) != tmp) {
+        checksum_failed = true;
+      } else if (sig.type == SignalType::CHRYSLER_CHECKSUM && chrysler_checksum(address, dat) != tmp) {
+        checksum_failed = true;
+      } else if (sig.type == SignalType::PEDAL_CHECKSUM && pedal_checksum(dat) != tmp) {
         checksum_failed = true;
       }
     }
 
     bool counter_failed = false;
     if (!ignore_counter) {
-      if (sig.type == SignalType::COUNTER) {
+      if (sig.type == SignalType::HONDA_COUNTER || sig.type == SignalType::VOLKSWAGEN_COUNTER || sig.type == SignalType::PEDAL_COUNTER) { 
         counter_failed = !update_counter_generic(tmp, sig.size);
       }
     }
 
     if (checksum_failed || counter_failed) {
-      LOGE("0x%X message checks failed, checksum failed %d, counter failed %d", address, checksum_failed, counter_failed);
+      WARN("0x%X message checks failed, checksum failed %d, counter failed %d\n", address, checksum_failed, counter_failed);
       return false;
     }
 
@@ -65,7 +76,7 @@ bool MessageState::parse(uint64_t sec, const std::vector<uint8_t> &dat) {
     vals[i] = tmp * sig.factor + sig.offset;
     all_vals[i].push_back(vals[i]);
   }
-  last_seen_nanos = sec;
+  seen = sec;
 
   return true;
 }
@@ -93,6 +104,7 @@ CANParser::CANParser(int abus, const std::string& dbc_name,
           const std::vector<MessageParseOptions> &options,
           const std::vector<SignalParseOptions> &sigoptions)
   : bus(abus), aligned_buf(kj::heapArray<capnp::word>(1024)) {
+
   dbc = dbc_lookup(dbc_name);
   assert(dbc);
   init_crc_lookup_tables();
@@ -113,9 +125,9 @@ CANParser::CANParser(int abus, const std::string& dbc_name,
     }
 
     const Msg* msg = NULL;
-    for (const auto& m : dbc->msgs) {
-      if (m.address == op.address) {
-        msg = &m;
+    for (int i = 0; i < dbc->num_msgs; i++) {
+      if (dbc->msgs[i].address == op.address) {
+        msg = &dbc->msgs[i];
         break;
       }
     }
@@ -125,12 +137,13 @@ CANParser::CANParser(int abus, const std::string& dbc_name,
     }
 
     state.size = msg->size;
-    assert(state.size <= 64);  // max signal size is 64 bytes
+    assert(state.size < 64);  // max signal size is 64 bytes
 
     // track checksums and counters for this message
-    for (const auto& sig : msg->sigs) {
-      if (sig.type != SignalType::DEFAULT) {
-        state.parse_sigs.push_back(sig);
+    for (int i = 0; i < msg->num_sigs; i++) {
+      const Signal *sig = &msg->sigs[i];
+      if (sig->type != SignalType::DEFAULT) {
+        state.parse_sigs.push_back(*sig);
         state.vals.push_back(0);
         state.all_vals.push_back({});
       }
@@ -140,9 +153,11 @@ CANParser::CANParser(int abus, const std::string& dbc_name,
     for (const auto& sigop : sigoptions) {
       if (sigop.address != op.address) continue;
 
-      for (const auto& sig : msg->sigs) {
-        if (sig.name == sigop.name && sig.type == SignalType::DEFAULT) {
-          state.parse_sigs.push_back(sig);
+      for (int i = 0; i < msg->num_sigs; i++) {
+        const Signal *sig = &msg->sigs[i];
+        if (strcmp(sig->name, sigop.name) == 0
+            && sig->type == SignalType::DEFAULT) {
+          state.parse_sigs.push_back(*sig);
           state.vals.push_back(0);
           state.all_vals.push_back({});
           break;
@@ -160,16 +175,18 @@ CANParser::CANParser(int abus, const std::string& dbc_name, bool ignore_checksum
   assert(dbc);
   init_crc_lookup_tables();
 
-  for (const auto& msg : dbc->msgs) {
+  for (int i = 0; i < dbc->num_msgs; i++) {
+    const Msg* msg = &dbc->msgs[i];
     MessageState state = {
-      .address = msg.address,
-      .size = msg.size,
+      .address = msg->address,
+      .size = msg->size,
       .ignore_checksum = ignore_checksum,
       .ignore_counter = ignore_counter,
     };
 
-    for (const auto& sig : msg.sigs) {
-      state.parse_sigs.push_back(sig);
+    for (int j = 0; j < msg->num_sigs; j++) {
+      const Signal *sig = &msg->sigs[j];
+      state.parse_sigs.push_back(*sig);
       state.vals.push_back(0);
       state.all_vals.push_back({});
     }
@@ -191,9 +208,6 @@ void CANParser::update_string(const std::string &data, bool sendcan) {
   capnp::FlatArrayMessageReader cmsg(aligned_buf.slice(0, buf_size));
   cereal::Event::Reader event = cmsg.getRoot<cereal::Event>();
 
-  if (first_sec == 0) {
-    first_sec = event.getLogMonoTime();
-  }
   last_sec = event.getLogMonoTime();
 
   auto cans = sendcan ? event.getSendcan() : event.getCan();
@@ -270,35 +284,19 @@ void CANParser::UpdateCans(uint64_t sec, const capnp::DynamicStruct::Reader& cms
   state_it->second.parse(sec, data);
 }
 
-int _missingCount = 0;
 void CANParser::UpdateValid(uint64_t sec) {
-  const bool show_missing = (last_sec - first_sec) > 8e9;
-
-  bool _valid = true;
-  bool _counters_valid = true;
+  can_valid = true;
   for (const auto& kv : message_states) {
     const auto& state = kv.second;
-
-    if (state.counter_fail >= MAX_BAD_COUNTER) {
-      _counters_valid = false;
-    }
-
-    const bool missing = state.last_seen_nanos == 0;
-    const bool timed_out = (sec - state.last_seen_nanos) > state.check_threshold;
-    if (state.check_threshold > 0 && (missing || timed_out)) {
-      if (_missingCount < 10 && show_missing && !bus_timeout) {
-          _missingCount++;
-        if (missing) {
-          LOGE("0x%X NOT SEEN", state.address);
-        } else if (timed_out) {
-          LOGE("0x%X TIMED OUT", state.address);
-        }
+    if (state.check_threshold > 0 && (sec - state.seen) > state.check_threshold) {
+      if (state.seen > 0) {
+        DEBUG("0x%X TIMEOUT\n", state.address);
+      } else {
+        DEBUG("0x%X MISSING\n", state.address);
       }
-      _valid = false;
+      can_valid = false;
     }
   }
-  can_invalid_cnt = _valid ? 0 : (can_invalid_cnt + 1);
-  can_valid = (can_invalid_cnt < CAN_INVALID_CNT) && _counters_valid;
 }
 
 std::vector<SignalValue> CANParser::query_latest() {
@@ -306,7 +304,7 @@ std::vector<SignalValue> CANParser::query_latest() {
 
   for (auto& kv : message_states) {
     auto& state = kv.second;
-    if (last_sec != 0 && state.last_seen_nanos != last_sec) continue;
+    if (last_sec != 0 && state.seen != last_sec) continue;
 
     for (int i = 0; i < state.parse_sigs.size(); i++) {
       const Signal &sig = state.parse_sigs[i];

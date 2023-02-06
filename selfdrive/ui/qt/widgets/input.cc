@@ -3,7 +3,7 @@
 #include <QPushButton>
 #include <QButtonGroup>
 
-#include "system/hardware/hw.h"
+#include "selfdrive/hardware/hw.h"
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/qt/qt_window.h"
 #include "selfdrive/ui/qt/widgets/scrollview.h"
@@ -33,6 +33,7 @@ QDialogBase::QDialogBase(QWidget *parent) : QDialog(parent) {
     QPushButton:pressed {
       background-color: #444444;
     }
+
   )");
 }
 
@@ -296,13 +297,12 @@ MultiOptionDialog::MultiOptionDialog(const QString &prompt_text, const QStringLi
     group->addButton(selectionLabel);
     listLayout->addWidget(selectionLabel);
   }
-  // add stretch to keep buttons spaced correctly
-  listLayout->addStretch(1);
 
   ScrollView *scroll_view = new ScrollView(listWidget, this);
   scroll_view->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
   main_layout->addWidget(scroll_view);
+  main_layout->addStretch(1);
   main_layout->addSpacing(35);
 
   // cancel + confirm buttons

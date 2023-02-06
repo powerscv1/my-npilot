@@ -8,7 +8,7 @@
 #include <QStackedWidget>
 #include <QWidget>
 #include <QStackedLayout>
-
+#include <QComboBox>
 
 #include "selfdrive/ui/qt/widgets/controls.h"
 
@@ -90,6 +90,17 @@ private:
 
   Params params;
   QFileSystemWatcher *fs_watch;
+};
+
+class C2NetworkPanel: public QWidget {
+  Q_OBJECT
+public:
+  explicit C2NetworkPanel(QWidget* parent = nullptr);
+
+private:
+  void showEvent(QShowEvent *event) override;
+  QString getIPAddress();
+  LabelControl *ipaddress;
 };
 
 
@@ -185,6 +196,33 @@ public:
         });
     }
 };
+class TimeZoneSelectCombo : public AbstractControl 
+{
+  Q_OBJECT
+
+public:
+  TimeZoneSelectCombo();
+
+private:
+  QPushButton btn;
+  QComboBox combobox;
+  Params params;
+
+  void refresh();
+};
+
+class UseBaseTorqueToggle : public ToggleControl {
+  Q_OBJECT
+
+public:
+  UseBaseTorqueToggle() : ToggleControl(tr("Use Base Torque Values"), "", "../assets/offroad/icon_openpilot.png", Params().getBool("UseBaseTorqueValues")) {
+    QObject::connect(this, &UseBaseTorqueToggle::toggleFlipped, [=](int state) {
+      bool status = state ? true : false;
+      Params().putBool("UseBaseTorqueValues", status);
+    });
+  }
+};
+
 class GitHash : public AbstractControl {
     Q_OBJECT
 

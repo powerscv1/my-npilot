@@ -15,7 +15,7 @@
 221203 - APILOT
 ========================
 * startAccel, stopAccel 설정
-* 신호정지 개선
+* 정지선 필터링
 
 221201 - APILOT
 ========================
@@ -91,19 +91,8 @@ Version 0.8.17 (2022-XX-XX) - APILOT
 ========================
 * New driving model
   * Internal feature space accuracy increased tenfold during training, this makes the model dramatically more accurate.
-* New driver monitoring model
-  * New end-to-end distracted trigger
 * Self-tuning torque lateral controller parameters
-  * Parameters learned live for each car
-* UI updates
-  * Multi-language in navigation
-  * Matched speeds shown on car's dash
-  * Improved update experience
-  * Border turns grey while overriding steering
-  * Added button to bookmark events while driving; view them later in comma connect
-* AGNOS 6
-* tools: new and improved cabana thanks to deanlee!
-* Kia Sportage Hybrid 2023 support thanks to sunnyhaibin!
+  * Parameters are learned live for each car
 
 Version 0.8.16 (2022-08-26)
 ========================
@@ -180,7 +169,7 @@ Version 0.8.14 (2022-06-01)
 Version 0.8.13 (2022-02-18)
 ========================
  * Improved driver monitoring
-   * Re-tuned driver pose learner for relaxed driving positions
+   * Retuned driver pose learner for relaxed driving positions
    * Added reliance on driving model to be more scene adaptive
    * Matched strictness between comma two and comma three
  * Improved performance in turns by compensating for the road bank angle
@@ -326,7 +315,7 @@ Version 0.8.4 (2021-05-17)
  * Delay controls start until system is ready
  * Fuzzy car identification, enabled with Community Features toggle
  * Localizer optimized for increased precision and less CPU usage
- * Re-tuned lateral control to be more aggressive when model is confident
+ * Retuned lateral control to be more aggressive when model is confident
  * Toyota Mirai 2021 support
  * Lexus NX 300 2020 support thanks to goesreallyfast!
  * Volkswagen Atlas 2018-19 support thanks to jyoung8607!
@@ -491,7 +480,7 @@ Version 0.7 (2019-12-13)
  * Improve GM longitudinal control: proper computations for 15Hz radar
  * Move GM port, Toyota with DSU removed, comma pedal in community features; toggle switch required
  * Remove upload over cellular toggle: only upload qlog and qcamera files if not on wifi
- * Refactor Panda code towards ISO26262 and SIL2 compliance
+ * Refactor Panda code towards ISO26262 and SIL2 compliancy
  * Forward stock FCW for Honda Nidec
  * Volkswagen port now standard: comma Harness intercepts stock camera
 

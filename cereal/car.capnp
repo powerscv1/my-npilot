@@ -46,6 +46,7 @@ struct CarEvent @0x9b1657f34caf3ad3 {
     controlsMismatch @22;
     pcmEnable @23;
     pcmDisable @24;
+    noTarget @25;
     radarFault @26;
     brakeHold @28;
     parkBrake @29;
@@ -143,7 +144,6 @@ struct CarEvent @0x9b1657f34caf3ad3 {
     modelLagWarningDEPRECATED @93;
     startupOneplusDEPRECATED @82;
     startupFuzzyFingerprintDEPRECATED @97;
-    noTargetDEPRECATED @25;
   }
 }
 
@@ -211,6 +211,9 @@ struct CarState {
   # clutch (manual transmission only)
   clutchPressed @28 :Bool;
 
+  # which packets this state came from
+  canMonoTimes @12: List(UInt64);
+
   # blindspot sensors
   leftBlindspot @33 :Bool; # Is there something blocking the left lane change
   rightBlindspot @34 :Bool; # Is there something blocking the right lane change
@@ -225,6 +228,9 @@ struct CarState {
   vCluRatio @47 :Float32;
   driverOverride @49 : Int32; #0: Normal, 1:Gas, 2:Brake
   naviSafetyInfo @50 : NaviSafetyInfo;
+  engineRpm @51 : Float32;
+  chargeMeter @52 : Float32;
+  motorRpm @53 : Float32;
 
   struct NaviSafetyInfo {
     sign @0 : Int32; # OPKR_S_Sign
@@ -295,11 +301,9 @@ struct CarState {
     }
   }
 
-  # deprecated
   errorsDEPRECATED @0 :List(CarEvent.EventName);
   brakeLights @19 :Bool;
   steeringRateLimitedDEPRECATED @29 :Bool;
-  canMonoTimesDEPRECATED @12: List(UInt64);
 }
 
 # ******* radar state @ 20hz *******
@@ -307,6 +311,9 @@ struct CarState {
 struct RadarData @0x888ad6581cf0aacb {
   errors @0 :List(Error);
   points @1 :List(RadarPoint);
+
+  # which packets this state came from
+  canMonoTimes @2 :List(UInt64);
 
   enum Error {
     canError @0;
@@ -331,9 +338,6 @@ struct RadarData @0x888ad6581cf0aacb {
     # some radars flag measurements VS estimates
     measured @6 :Bool;
   }
-
-  # deprecated
-  canMonoTimesDEPRECATED @2 :List(UInt64);
 }
 
 # ******* car controls @ 100hz *******
@@ -347,9 +351,6 @@ struct CarControl {
   # Actuator commands as computed by controlsd
   actuators @6 :Actuators;
 
-  leftBlinker @15: Bool;
-  rightBlinker @16: Bool;
-
   # Any car specific rate limits or quirks applied by
   # the CarController are reflected in actuatorsOutput
   # and matches what is sent to the car
@@ -360,12 +361,12 @@ struct CarControl {
 
   cruiseControl @4 :CruiseControl;
   hudControl @5 :HUDControl;
-  debugTextCC @17 : Text;
-  latEnabled @18: Bool;
-  latOverride @19: Bool;
-  longEnabled @20: Bool;
-  longOverride @21: Bool;
-  activeHda @22: Int8;
+  debugTextCC @15 : Text;
+  latEnabled @16: Bool;
+  latOverride @17: Bool;
+  longEnabled @18: Bool;
+  longOverride @19: Bool;
+  activeHda @20: Int8;
 
   struct Actuators {
     # range from 0.0 - 1.0
@@ -373,22 +374,21 @@ struct CarControl {
     brake @1: Float32;
     # range from -1.0 - 1.0
     steer @2: Float32;
-    # value sent over can to the car
-    steerOutputCan @8: Float32;
     steeringAngleDeg @3: Float32;
-
-    curvature @7: Float32;
 
     speed @6: Float32; # m/s
     accel @4: Float32; # m/s^2
     longControlState @5: LongControlState;
-
+    
+    curvature @7: Float32;
+    
     enum LongControlState @0xe40f3a917d908282{
       off @0;
       pid @1;
       stopping @2;
       starting @3;
     }
+
   }
 
   struct CruiseControl {
@@ -518,7 +518,7 @@ struct CarParams {
   vEgoStarting @59 :Float32; # Speed at which the car goes into starting state
   stoppingControl @31 :Bool; # Does the car allow full control even at lows speeds when stopping
   steerControlType @34 :SteerControlType;
-  radarUnavailable @35 :Bool; # True when radar objects aren't visible on CAN or aren't parsed out
+  radarOffCan @35 :Bool; # True when radar objects aren't visible on CAN
   stopAccel @60 :Float32; # Required acceleration to keep vehicle stationary
   stoppingDecelRate @52 :Float32; # m/s^2/s while trying to stop
   startAccel @32 :Float32; # Required acceleration to get car moving
@@ -640,7 +640,7 @@ struct CarParams {
     subaruLegacy @22;  # pre-Global platform
     hyundaiLegacy @23;
     hyundaiCommunity @24;
-    volkswagenMlb @25;
+    stellantisDEPRECATED @25;  # Consolidated with Chrysler; may be recycled for the next new model
     hongqi @26;
     body @27;
     hyundaiCanfd @28;
@@ -649,7 +649,6 @@ struct CarParams {
   enum SteerControlType {
     torque @0;
     angle @1;
-    curvature @2;
   }
 
   enum TransmissionType {

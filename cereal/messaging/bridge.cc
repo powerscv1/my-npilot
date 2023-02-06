@@ -7,14 +7,9 @@
 
 typedef void (*sighandler_t)(int sig);
 
-#include "cereal/services.h"
-#include "cereal/messaging/impl_msgq.h"
-#include "cereal/messaging/impl_zmq.h"
-
-std::atomic<bool> do_exit = false;
-static void set_do_exit(int sig) {
-  do_exit = true;
-}
+#include "impl_msgq.h"
+#include "impl_zmq.h"
+#include "services.h"
 
 void sigpipe_handler(int sig) {
   assert(sig == SIGPIPE);
@@ -36,8 +31,6 @@ static std::vector<std::string> get_services(std::string whitelist_str, bool zmq
 
 int main(int argc, char** argv) {
   signal(SIGPIPE, (sighandler_t)sigpipe_handler);
-  signal(SIGINT, (sighandler_t)set_do_exit);
-  signal(SIGTERM, (sighandler_t)set_do_exit);
 
   bool zmq_to_msgq = argc > 2;
   std::string ip = zmq_to_msgq ? argv[1] : "127.0.0.1";
@@ -57,7 +50,7 @@ int main(int argc, char** argv) {
   }
 
   std::map<SubSocket*, PubSocket*> sub2pub;
-  for (auto endpoint : get_services(whitelist_str, zmq_to_msgq)) {
+  for (auto endpoint: get_services(whitelist_str, zmq_to_msgq)) {
     PubSocket * pub_sock;
     SubSocket * sub_sock;
     if (zmq_to_msgq) {
@@ -74,18 +67,12 @@ int main(int argc, char** argv) {
     sub2pub[sub_sock] = pub_sock;
   }
 
-  while (!do_exit) {
+  while (true) {
     for (auto sub_sock : poller->poll(100)) {
       Message * msg = sub_sock->receive();
       if (msg == NULL) continue;
-      int ret;
-      do {
-        ret = sub2pub[sub_sock]->sendMessage(msg);
-      } while (ret == -1 && errno == EINTR && !do_exit);
-      assert(ret >= 0 || do_exit);
+      sub2pub[sub_sock]->sendMessage(msg);
       delete msg;
-
-      if (do_exit) break;
     }
   }
   return 0;

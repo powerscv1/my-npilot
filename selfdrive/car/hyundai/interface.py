@@ -23,7 +23,7 @@ class CarInterface(CarInterfaceBase):
   @staticmethod
   def _get_params(ret, candidate, fingerprint, car_fw, experimental_long):
     ret.carName = "hyundai"
-    ret.radarUnavailable = RADAR_START_ADDR not in fingerprint[1] or DBC[ret.carFingerprint]["radar"] is None
+    ret.radarOffCan = RADAR_START_ADDR not in fingerprint[1] or DBC[ret.carFingerprint]["radar"] is None
 
     # These cars have been put into dashcam only due to both a lack of users and test coverage.
     # These cars likely still work fine. Once a user confirms each car works and a test route is
@@ -50,8 +50,13 @@ class CarInterface(CarInterfaceBase):
     ret.steerRatio = 16.
     tire_stiffness_factor = 1.
     CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
-
-    if candidate in (CAR.SANTA_FE, CAR.SANTA_FE_2022, CAR.SANTA_FE_HEV_2022, CAR.SANTA_FE_PHEV_2022):
+    if candidate in (CAR.GRANDEUR_IG_FL, CAR.GRANDEUR_IG_FL_HEV):
+      ret.mass = 1675. + STD_CARGO_KG
+      ret.wheelbase = 2.885
+      ret.steerRatio = 16.5  
+      tire_stiffness_factor = 0.8
+      ret.steerActuatorDelay = 0.2
+    elif candidate in (CAR.SANTA_FE, CAR.SANTA_FE_2022, CAR.SANTA_FE_HEV_2022, CAR.SANTA_FE_PHEV_2022):
       ret.mass = 3982. * CV.LB_TO_KG + STD_CARGO_KG
       ret.wheelbase = 2.766
       # Values from optimizer
@@ -69,7 +74,8 @@ class CarInterface(CarInterfaceBase):
     elif candidate == CAR.PALISADE:
       ret.mass = 1999. + STD_CARGO_KG
       ret.wheelbase = 2.90
-      ret.steerRatio = 15.6 * 1.15
+      #ret.steerRatio = 15.6 * 1.15
+      ret.steerRatio = 13.96 # 지구별.
       tire_stiffness_factor = 0.63
     elif candidate == CAR.ELANTRA:
       ret.mass = 1275. + STD_CARGO_KG
@@ -125,8 +131,8 @@ class CarInterface(CarInterfaceBase):
       tire_stiffness_factor = 0.7
       ret.centerToFront = ret.wheelbase * 0.4
       ret.steerRatio = 14.00
-    elif candidate in (CAR.TUCSON_4TH_GEN, CAR.TUCSON_HYBRID_4TH_GEN):
-      ret.mass = 1630. + STD_CARGO_KG  # average
+    elif candidate == CAR.TUCSON_HYBRID_4TH_GEN:
+      ret.mass = 1680. + STD_CARGO_KG  # average of all 3 trims
       ret.wheelbase = 2.756
       ret.steerRatio = 16.
       tire_stiffness_factor = 0.385
@@ -196,19 +202,12 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 1767. + STD_CARGO_KG  # SX Prestige trim support only
       ret.wheelbase = 2.756
       ret.steerRatio = 13.6
-    elif candidate in (CAR.KIA_SORENTO_4TH_GEN, CAR.KIA_SORENTO_PHEV_4TH_GEN):
-      ret.wheelbase = 2.81
-      ret.steerRatio = 13.5  # average of the platforms
-      if candidate == CAR.KIA_SORENTO_4TH_GEN:
-        ret.mass = 3957 * CV.LB_TO_KG + STD_CARGO_KG
-      else:
-        ret.mass = 4537 * CV.LB_TO_KG + STD_CARGO_KG
+    elif candidate == CAR.KIA_SOUL_EV_SK3:
+      ret.steerRatio = 13.7  # average of the platforms
+      ret.mass = 1375. + STD_CARGO_KG
+      ret.wheelbase = 2.6      
 
     # Genesis
-    elif candidate == CAR.GENESIS_GV60_EV_1ST_GEN:
-      ret.mass = 2205 + STD_CARGO_KG
-      ret.wheelbase = 2.9
-      ret.steerRatio = 12.6 # https://www.motor1.com/reviews/586376/2023-genesis-gv60-first-drive/#:~:text=Relative%20to%20the%20related%20Ioniq,5%2FEV6%27s%2014.3%3A1.
     elif candidate == CAR.GENESIS_G70:
       ret.steerActuatorDelay = 0.1
       ret.mass = 1640.0 + STD_CARGO_KG
@@ -235,12 +234,6 @@ class CarInterface(CarInterfaceBase):
       ret.mass = 1570. + STD_CARGO_KG
       ret.wheelbase = 2.845
       ret.steerRatio = 16.
-      tire_stiffness_factor = 0.8
-      ret.centerToFront = ret.wheelbase * 0.385
-    elif candidate in [CAR.GRANDEUR_IG_FL, CAR.GRANDEUR_IG_FL_HEV]:
-      ret.mass = 1600. + STD_CARGO_KG
-      ret.wheelbase = 2.885
-      ret.steerRatio = 17.
       tire_stiffness_factor = 0.8
       ret.centerToFront = ret.wheelbase * 0.385
     elif candidate == CAR.NEXO: # fix PolorBear - 22.06.05
@@ -316,7 +309,7 @@ class CarInterface(CarInterfaceBase):
     ret.stoppingControl = True
     ret.startingState = False # True # startAccel을 적용하는 startingState를 막음.
     ret.vEgoStarting = 0.3
-    ret.vEgoStopping = 0.3
+    ret.vEgoStopping = 0.7 #0.3
     ret.startAccel = 2.0
     ret.stoppingDecelRate = 0.4 # brake_travel/s while trying to stop
     ret.longitudinalActuatorDelayLowerBound = 0.5
@@ -384,10 +377,6 @@ class CarInterface(CarInterfaceBase):
     elif Params().get_bool("EnableRadarTracks"): #롱컨관계없이 EnableRadarTracks는 사용할 수 있을듯..
       enable_radar_tracks(CP, logcan, sendcan)      
 
-    # for blinkers
-    if CP.flags & HyundaiFlags.ENABLE_BLINKERS:
-      disable_ecu(logcan, sendcan, bus=5, addr=0x7B1, com_cont_req=b'\x28\x83\x01')
-
   def _update(self, c):
     ret = self.CS.update(self.cp, self.cp_cam)
 
@@ -405,6 +394,9 @@ class CarInterface(CarInterfaceBase):
     # Main button also can trigger an engagement on these cars
     allow_enable = any(btn in ENABLE_BUTTONS for btn in self.CS.cruise_buttons) or any(self.CS.main_buttons)
     events = self.create_common_events(ret, pcm_enable=self.CS.CP.pcmCruise, allow_enable=allow_enable)
+
+    if self.CS.brake_error:
+      events.add(EventName.brakeUnavailable)
 
     # low speed steer alert hysteresis logic (only for cars with steer cut off above 10 m/s)
     if ret.vEgo < (self.CP.minSteerSpeed + 2.) and self.CP.minSteerSpeed > 10.:

@@ -8,7 +8,7 @@ import cereal.messaging as messaging
 from common.conversions import Conversions as CV
 from common.realtime import DT_CTRL
 from selfdrive.locationd.calibrationd import MIN_SPEED_FILTER
-from system.version import get_short_branch
+from selfdrive.version import get_short_branch
 
 AlertSize = log.ControlsState.AlertSize
 AlertStatus = log.ControlsState.AlertStatus
@@ -500,9 +500,9 @@ EVENTS: Dict[int, Dict[str, Union[Alert, AlertCallbackType]]] = {
 
   EventName.resumeRequired: {
     ET.WARNING: Alert(
+      "STOPPED",
       "Press Resume to Exit Standstill",
-      "",
-      AlertStatus.userPrompt, AlertSize.small,
+      AlertStatus.userPrompt, AlertSize.mid,
       Priority.LOW, VisualAlert.none, AudibleAlert.none, .2),
   },
 
@@ -808,9 +808,9 @@ EVENTS: Dict[int, Dict[str, Union[Alert, AlertCallbackType]]] = {
   },
 
   EventName.accFaulted: {
-    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("Cruise Fault: Restart the Car"),
-    ET.PERMANENT: NormalPermanentAlert("Cruise Fault: Restart the car to engage"),
-    ET.NO_ENTRY: NoEntryAlert("Cruise Fault: Restart the Car"),
+    ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("Cruise Faulted"),
+    ET.PERMANENT: NormalPermanentAlert("Cruise Faulted", ""),
+    ET.NO_ENTRY: NoEntryAlert("Cruise Faulted"),
   },
 
   EventName.accFaultedTemp: {
@@ -920,6 +920,15 @@ EVENTS: Dict[int, Dict[str, Union[Alert, AlertCallbackType]]] = {
     ET.IMMEDIATE_DISABLE: ImmediateDisableAlert("Harness Relay Malfunction"),
     ET.PERMANENT: NormalPermanentAlert("Harness Relay Malfunction", "Check Hardware"),
     ET.NO_ENTRY: NoEntryAlert("Harness Relay Malfunction"),
+  },
+
+  EventName.noTarget: {
+    ET.IMMEDIATE_DISABLE: Alert(
+      "openpilot Canceled",
+      "No close lead car",
+      AlertStatus.normal, AlertSize.mid,
+      Priority.HIGH, VisualAlert.none, AudibleAlert.disengage, 3.),
+    ET.NO_ENTRY: NoEntryAlert("No Close Lead Car"),
   },
 
   EventName.speedTooLow: {

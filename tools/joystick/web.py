@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
+from flask import Flask
 import time
 import threading
-from flask import Flask
-
 import cereal.messaging as messaging
 
 app = Flask(__name__)
@@ -16,24 +15,11 @@ index = """
 <body>
 <div id="joyDiv" style="width:100%;height:100%"></div>
 <script type="text/javascript">
-// Set up gamepad handlers
-let gamepad = null;
-window.addEventListener("gamepadconnected", function(e) {
-  gamepad = e.gamepad;
-});
-window.addEventListener("gamepaddisconnected", function(e) {
-  gamepad = null;
-});
 // Create JoyStick object into the DIV 'joyDiv'
 var joy = new JoyStick('joyDiv');
 setInterval(function(){
   var x = -joy.GetX()/100;
   var y = joy.GetY()/100;
-  if (x === 0 && y === 0 && gamepad !== null) {
-    let gamepadstate = navigator.getGamepads()[gamepad.index];
-    x = -gamepadstate.axes[0];
-    y = -gamepadstate.axes[1];
-  }
   let xhr = new XMLHttpRequest();
   xhr.open("GET", "/control/"+x+"/"+y);
   xhr.send();
@@ -45,7 +31,7 @@ setInterval(function(){
 def hello_world():
   return index
 
-last_send_time = time.monotonic()
+last_send_time = time.time()
 @app.route("/control/<x>/<y>")
 def control(x, y):
   global last_send_time
@@ -56,23 +42,21 @@ def control(x, y):
   dat.testJoystick.axes = [y,x]
   dat.testJoystick.buttons = [False]
   pm.send('testJoystick', dat)
-  last_send_time = time.monotonic()
+  last_send_time = time.time()
   return ""
 
 def handle_timeout():
   while 1:
-    this_time = time.monotonic()
+    this_time = time.time()
     if (last_send_time+0.5) < this_time:
-      #print("timeout, no web in %.2f s" % (this_time-last_send_time))
+      print("timeout, no web in %.2f s" % (this_time-last_send_time))
       dat = messaging.new_message('testJoystick')
       dat.testJoystick.axes = [0,0]
       dat.testJoystick.buttons = [False]
       pm.send('testJoystick', dat)
     time.sleep(0.1)
 
-def main():
+if __name__ == '__main__':
   threading.Thread(target=handle_timeout, daemon=True).start()
   app.run(host="0.0.0.0")
 
-if __name__ == '__main__':
-  main()

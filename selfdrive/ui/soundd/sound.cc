@@ -7,12 +7,12 @@
 #include <QDebug>
 
 #include "cereal/messaging/messaging.h"
-#include "common/util.h"
+#include "selfdrive/common/util.h"
 
 // TODO: detect when we can't play sounds
 // TODO: detect when we can't display the UI
 
-Sound::Sound(QObject *parent) : sm({"controlsState", "deviceState", "microphone"}) {
+Sound::Sound(QObject *parent) : sm({"carState", "controlsState", "deviceState"}) {
   qInfo() << "default audio device: " << QAudioDeviceInfo::defaultOutputDevice().deviceName();
 
   for (auto &[alert, fn, loops] : sound_list) {
@@ -20,6 +20,7 @@ Sound::Sound(QObject *parent) : sm({"controlsState", "deviceState", "microphone"
     QObject::connect(s, &QSoundEffect::statusChanged, [=]() {
       assert(s->status() != QSoundEffect::Error);
     });
+    s->setVolume(Hardware::MIN_VOLUME);
     s->setSource(QUrl::fromLocalFile("../../assets/sounds/" + fn));
     sounds[alert] = {s, loops};
   }
@@ -46,11 +47,14 @@ void Sound::update() {
     return;
   }
 
-  // scale volume using ambient noise level
-  if (sm.updated("microphone")) {
-    float volume = util::map_val(sm["microphone"].getMicrophone().getFilteredSoundPressureWeightedDb(), 30.f, 60.f, 0.f, 1.f);
+  // scale volume with speed
+  if (sm.updated("carState")) {
+    float volume = util::map_val(sm["carState"].getCarState().getVEgo(), 11.f, 20.f, 0.f, 1.0f);
     volume = QAudio::convertVolume(volume, QAudio::LogarithmicVolumeScale, QAudio::LinearVolumeScale);
-    Hardware::set_volume(volume);
+    volume = util::map_val(volume, 0.f, 1.f, Hardware::MIN_VOLUME, Hardware::MAX_VOLUME);
+    for (auto &[s, loops] : sounds) {
+      s->setVolume(std::round(100 * volume) / 100);
+    }
   }
 
   setAlert(Alert::get(sm, started_frame));

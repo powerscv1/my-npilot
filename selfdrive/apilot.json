@@ -54,11 +54,51 @@
     {
       "group": "조향튜닝",
       "name": "LateralAccelCost",
-      "title": "LateralAccelCost(100)",
+      "title": "_LateralAccelCost(100)",
       "descr": "",
       "min": 0,
       "max": 1000,
       "default": 100,
+      "unit": 1
+    },
+    {
+      "group": "조향튜닝",
+      "name": "LateralMotionCost",
+      "title": "_LateralMotionCost(11)",
+      "descr": "",
+      "min": 0,
+      "max": 1000,
+      "default": 11,
+      "unit": 1
+    },
+    {
+      "group": "조향튜닝",
+      "name": "PathCostApply",
+      "title": "_PathCostApply(100)",
+      "descr": "시험용",
+      "min": 0,
+      "max": 500,
+      "default": 100,
+      "unit": 1
+    },
+    {
+      "group": "조향튜닝",
+      "name": "LateralJerkCost",
+      "title": "_LateralJerkCost(4)",
+      "descr": "",
+      "min": 0,
+      "max": 100,
+      "default": 5,
+      "unit": 1
+    },
+    {
+      "group": "조향튜닝",
+      "name": "LateralTestMode",
+      "title": "_LateralTestMode(0)",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 0,
       "unit": 1
     },
     {
@@ -75,10 +115,20 @@
       "group": "조향튜닝",
       "name": "SteerActuatorDelayLow",
       "title": "SteerActuatorDelayLow(30)",
-      "descr": "저속일때 값을 크게하여 좀더 빠른 조향",
+      "descr": "0키로일때 SAD",
       "min": 0,
       "max": 200,
-      "default": 100,
+      "default": 30,
+      "unit": 1
+    },
+    {
+      "group": "조향튜닝",
+      "name": "SteerActuatorDelayMid",
+      "title": "SteerActuatorDelayMid(30)",
+      "descr": "50키로속도 SAD",
+      "min": 0,
+      "max": 200,
+      "default": 30,
       "unit": 1
     },
     {
@@ -112,6 +162,66 @@
       "unit": 1
     },
     {
+      "group": "가속설정",
+      "name": "CruiseMaxVals1",
+      "title": "가속설정1:0km/h(200)",
+      "descr": "가속도를 설정합니다. (x0.01m/s^2)",
+      "min": 1,
+      "max": 300,
+      "default": 200,
+      "unit": 5
+    },
+    {
+      "group": "가속설정",
+      "name": "CruiseMaxVals2",
+      "title": "가속설정2:40km/h(140)",
+      "descr": "가속도를 설정합니다. (x0.01m/s^2)",
+      "min": 1,
+      "max": 300,
+      "default": 140,
+      "unit": 5
+    },
+    {
+      "group": "가속설정",
+      "name": "CruiseMaxVals3",
+      "title": "가속설정3:60km/h(50)",
+      "descr": "가속도를 설정합니다. (x0.01m/s^2)",
+      "min": 1,
+      "max": 300,
+      "default": 50,
+      "unit": 5
+    },
+    {
+      "group": "가속설정",
+      "name": "CruiseMaxVals4",
+      "title": "가속설정4:80km/h(20)",
+      "descr": "가속도를 설정합니다. (x0.01m/s^2)",
+      "min": 1,
+      "max": 300,
+      "default": 20,
+      "unit": 5
+    },
+    {
+      "group": "가속설정",
+      "name": "CruiseMaxVals5",
+      "title": "가속설정5:110km/h(15)",
+      "descr": "가속도를 설정합니다. (x0.01m/s^2)",
+      "min": 1,
+      "max": 300,
+      "default": 15,
+      "unit": 5
+    },
+    {
+      "group": "가속설정",
+      "name": "CruiseMaxVals6",
+      "title": "가속설정6:140km/h(15)",
+      "descr": "가속도를 설정합니다. (x0.01m/s^2)",
+      "min": 1,
+      "max": 300,
+      "default": 15,
+      "unit": 5
+    },
+    {
       "group": "주행설정",
       "name": "MySafeModeFactor",
       "title": "안전비율(80%)",
@@ -143,6 +253,26 @@
     },
     {
       "group": "주행튜닝",
+      "name": "LongitudinalTuningKpV",
+      "title": "KpV게인(100)",
+      "descr": "롱컨제어용",
+      "min": 50,
+      "max": 150,
+      "default": 100,
+      "unit": 1
+    },
+    {
+      "group": "주행튜닝",
+      "name": "LongitudinalTuningKiV",
+      "title": "KiV게인(0)",
+      "descr": "정지중에만 반영(시험용)",
+      "min": 0,
+      "max": 200,
+      "default": 0,
+      "unit": 1
+    },
+    {
+      "group": "주행튜닝",
       "name": "AChangeCost",
       "title": "A_CHANGE_COST(150)",
       "descr": "적으면 선행차에 대한 반응이 빨라집니다.",
@@ -162,6 +292,16 @@
       "unit": 1
     },
     {
+      "group": "주행튜닝",
+      "name": "ApplyModelDistOrder",
+      "title": "신호정지 감속모델선택 (32)",
+      "descr": "숫자가 작을수록 감속을 미리합니다.",
+      "min": 1,
+      "max": 32,
+      "default": 32,
+      "unit": 1
+    },
+    {
       "group": "조향",
       "name": "AutoCurveSpeedFactor",
       "title": "모델커브속도조절비율(100%)",
@@ -170,6 +310,46 @@
       "max": 150,
       "default": 1,
       "unit": 1
+    },
+    {
+      "group": "조향",
+      "name": "AutoTurnControl",
+      "title": "자동모델턴제어",
+      "descr": "시험용",
+      "min": 0,
+      "max": 2,
+      "default": 0,
+      "unit": 1
+    },
+    {
+      "group": "조향",
+      "name": "AutoTurnSpeed",
+      "title": "자동모델턴제어:속도",
+      "descr": "해당속도이하에서 자동턴시작",
+      "min": 2,
+      "max": 60,
+      "default": 40,
+      "unit": 5
+    },
+    {
+      "group": "조향",
+      "name": "AutoTurnTimeMax",
+      "title": "자동모델턴제어:시간제한",
+      "descr": "자동턴 시간제한 설정",
+      "min": 30,
+      "max": 240,
+      "default": 60,
+      "unit": 5
+    },
+    {
+      "group": "조향",
+      "name": "AutoLaneChangeSpeed",
+      "title": "자동차선변경속도",
+      "descr": "해당속도 이상에서만 자동차선변경",
+      "min": 5,
+      "max": 60,
+      "default": 30,
+      "unit": 5
     },
     {
       "group": "버튼설정",
@@ -199,6 +379,16 @@
       "min": 1,
       "max": 4,
       "default": 0,
+      "unit": 1
+    },
+    {
+      "group": "자동크루즈",
+      "name": "CruiseSpeedMin",
+      "title": "크루즈 최저속도(10)",
+      "descr": "크루즈제어의 최저속도",
+      "min": 10,
+      "max": 50,
+      "default": 10,
       "unit": 1
     },
     {
@@ -233,9 +423,9 @@
     },
     {
       "group": "자동크루즈",
-      "name": "AutoCancelFromGas",
-      "title": "엑셀크루즈OFF:속도",
-      "descr": "설정속도이하에서 엑셀을 밟으면 크루즈 OFF",
+      "name": "AutoCancelFromGasMode",
+      "title": "엑셀 크루즈OFF:모드",
+      "descr": "엑셀크루즈ON속도 이하에서 엑셀을 밟으면 크루즈가 해제 1:항상, 2:레이더OFF시에만",
       "min": 0,
       "max": 140,
       "default": 0,
@@ -317,6 +507,116 @@
       "title": "시간정보표시",
       "descr": "",
       "min": 0,
+      "max": 3,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowHudMode",
+      "title": "화면표시모드",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowSteerRotate",
+      "title": "화면핸들회전",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowPathEnd",
+      "title": "화면패쓰끝표시",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowAccelRpm",
+      "title": "화면가속도표시",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowTpms",
+      "title": "화면TPMS",
+      "descr": "",
+      "min": 0,
+      "max": 6,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowSteerMode",
+      "title": "화면핸들표시모드",
+      "descr": "",
+      "min": 0,
+      "max": 2,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowDeviceState",
+      "title": "화면디바이스정보",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowConnInfo",
+      "title": "화면부가정보",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowLaneInfo",
+      "title": "화면차선정보",
+      "descr": "-1:모두삭제, 0:패스만, 1:레인, 2:로드엣지",
+      "min": -1,
+      "max": 2,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowBlindSpot",
+      "title": "화면BSD정보",
+      "descr": "",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowGapInfo",
+      "title": "화면GAP정보",
+      "descr": "",
+      "min": 0,
       "max": 1,
       "default": 1,
       "unit": 1
@@ -343,13 +643,13 @@
     },
     {
       "group": "조향",
-      "name": "UseLanelines",
-      "title": "레인모드사용",
-      "descr": "",
+      "name": "UseLaneLineSpeed",
+      "title": "레인모드작동속도",
+      "descr": "레인모드 작동속도: 크게하면 안함...",
       "min": 0,
-      "max": 1,
-      "default": 1,
-      "unit": 1
+      "max": 200,
+      "default": 80,
+      "unit": 10
     },
     {
       "group": "시작",
@@ -472,16 +772,6 @@
       "unit": 1
     },
     {
-      "group": "조향",
-      "name": "AutoCurveSpeedFactor",
-      "title": "커브제어속도조정(100%)",
-      "descr": "방법2일때 적용됨",
-      "min": 50,
-      "max": 150,
-      "default": 100,
-      "unit": 1
-    },
-    {
       "group": "정지",
       "name": "StopAccelApply",
       "title": "정지유지브레이크-2.0x(30%)",
@@ -490,6 +780,46 @@
       "max": 100,
       "default": 30,
       "unit": 10
+    },
+    {
+      "group": "시작",
+      "name": "InitMyDrivingMode",
+      "title": "드라이브모드:초기값(3)",
+      "descr": "1:연비,2:안전,3:일반,4:고속(신호무시)",
+      "min": 1,
+      "max": 4,
+      "default": 3,
+      "unit": 1
+    },
+    {
+      "group": "속도제한",
+      "name": "AutoNaviSpeedCtrl",
+      "title": "과속카메라 작동방법(2)",
+      "descr": "0:사용안함, 1:NDA, 2:NDA + 순정네비게이션",
+      "min": 0,
+      "max": 2,
+      "default": 2,
+      "unit": 1
+    },
+    {
+      "group": "속도제한",
+      "name": "AutoNaviSpeedCtrlStart",
+      "title": "과속카메라감속 시작 시간(22초)",
+      "descr": "감속시작시점을 설정합니다.",
+      "min": 10,
+      "max": 50,
+      "default": 22,
+      "unit": 1
+    },
+    {
+      "group": "속도제한",
+      "name": "AutoNaviSpeedCtrlEnd",
+      "title": "과속카메라감속 시작 시간(6초)",
+      "descr": "감속종료시점을 설정합니다.",
+      "min": 3,
+      "max": 20,
+      "default": 6,
+      "unit": 1
     }
 
   ]

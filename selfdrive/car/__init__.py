@@ -1,9 +1,8 @@
 # functions common among cars
 import capnp
-from collections import namedtuple
 
 from cereal import car
-from common.numpy_fast import clip, interp
+from common.numpy_fast import clip
 from typing import Dict
 
 # kg of standard extra cargo to count for drive, gas, etc...
@@ -11,7 +10,6 @@ STD_CARGO_KG = 136.
 
 ButtonType = car.CarState.ButtonEvent.Type
 EventName = car.CarEvent.EventName
-AngleRateLimit = namedtuple('AngleRateLimit', ['speed_bp', 'angle_v'])
 
 
 def apply_hysteresis(val: float, val_steady: float, hyst_gap: float) -> float:
@@ -35,7 +33,7 @@ def create_button_event(cur_but: int, prev_but: int, buttons_dict: Dict[int, cap
 
 
 def gen_empty_fingerprint():
-  return {i: {} for i in range(0, 8)}
+  return {i: {} for i in range(0, 4)}
 
 
 # FIXME: hardcoding honda civic 2016 touring params so they can be used to
@@ -69,7 +67,7 @@ def scale_tire_stiffness(mass, wheelbase, center_to_front, tire_stiffness_factor
   return tire_stiffness_front, tire_stiffness_rear
 
 
-def dbc_dict(pt_dbc, radar_dbc, chassis_dbc=None, body_dbc=None) -> Dict[str, str]:
+def dbc_dict(pt_dbc, radar_dbc, chassis_dbc=None, body_dbc=None):
   return {'pt': pt_dbc, 'radar': radar_dbc, 'chassis': chassis_dbc, 'body': body_dbc}
 
 
@@ -111,15 +109,6 @@ def apply_toyota_steer_torque_limits(apply_torque, apply_torque_last, motor_torq
                         min(apply_torque_last + LIMITS.STEER_DELTA_DOWN, LIMITS.STEER_DELTA_UP))
 
   return int(round(float(apply_torque)))
-
-
-def apply_std_steer_angle_limits(apply_angle, apply_angle_last, v_ego, LIMITS):
-  # pick angle rate limits based on wind up/down
-  steer_up = apply_angle_last * apply_angle > 0. and abs(apply_angle) > abs(apply_angle_last)
-  rate_limits = LIMITS.ANGLE_RATE_LIMIT_UP if steer_up else LIMITS.ANGLE_RATE_LIMIT_DOWN
-
-  angle_rate_lim = interp(v_ego, rate_limits.speed_bp, rate_limits.angle_v)
-  return clip(apply_angle, apply_angle_last - angle_rate_lim, apply_angle_last + angle_rate_lim)
 
 
 def crc8_pedal(data):

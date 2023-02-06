@@ -19,11 +19,11 @@ V_CRUISE_DELTA_KM = 10
 MIN_SPEED = 1.0
 LAT_MPC_N = 32
 LON_MPC_N = 32
-CONTROL_N = 33
+CONTROL_N = 17
 CAR_ROTATION_RADIUS = 0.0
 
 # EU guidelines
-MAX_LATERAL_JERK = 10.0 #5.0
+MAX_LATERAL_JERK = 10.0
 
 ButtonEvent = car.CarState.ButtonEvent
 ButtonType = car.CarState.ButtonEvent.Type
@@ -64,8 +64,8 @@ class VCruiseHelper:
         self.v_cruise_kph = CS.cruiseState.speed * CV.MS_TO_KPH
         self.v_cruise_cluster_kph = CS.cruiseState.speedCluster * CV.MS_TO_KPH
     else:
-      self.v_cruise_kph = V_CRUISE_INITIAL
-      self.v_cruise_cluster_kph = V_CRUISE_INITIAL
+      self.v_cruise_kph = 30 #V_CRUISE_INITIAL
+      self.v_cruise_cluster_kph = 30 #V_CRUISE_INITIAL
 
   def _update_v_cruise_non_pcm(self, CS, enabled, is_metric):
     # handle button presses. TODO: this should be in state_control, but a decelCruise press
