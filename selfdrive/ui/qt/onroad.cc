@@ -566,7 +566,7 @@ void AnnotatedCameraWidget::paintEvent(QPaintEvent *event) {
   printf("elapsed = %.2f\n", cur_draw_t - start_draw_t);
 #endif
   auto now = millis_since_boot();
-  if (now - last_update_params > 20 * 1) {
+  if (now - last_update_params > 2 * 1) {
       last_update_params = now;
       ui_update_params(uiState());
   }
@@ -646,11 +646,11 @@ void AnnotatedCameraWidget::drawHud(QPainter &p, const cereal::ModelDataV2::Read
 
   drawMaxSpeed(p);
   drawSpeed(p);
-  drawSteer(p);
-  drawDeviceState(p);
+  if (s->show_steer_mode) drawSteer(p);
+  if (s->show_device_stat) drawDeviceState(p);
   drawTurnSignals(p);
   drawGpsStatus(p);
-  drawDebugText(p);
+  if (s->show_debug) drawDebugText(p);
 
 #if 0
   const auto controls_state = sm["controlsState"].getControlsState();
@@ -1343,6 +1343,10 @@ void AnnotatedCameraWidget::drawDebugText(QPainter &p) {
   p.drawText(text_x, y, str);
   p.drawText(text_x, y+80, QString::fromStdString(live_torque_params.getDebugText().cStr()));
 
+  auto controls_state = sm["controlsState"].getControlsState();
+  p.drawText(text_x, y + 160, QString::fromStdString(controls_state.getDebugText2().cStr()));
+  p.drawText(text_x, y + 240, QString::fromStdString(controls_state.getDebugText1().cStr()));
+
   p.restore();
   /*p.save();
   const SubMaster &sm = *(uiState()->sm);
@@ -1534,21 +1538,19 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
     // 과녁을 표시할 위치를 계산
     const int icon_size = 256;
     const float d_rel = lead_data.getX()[0];
-    float x = std::clamp((float)vd.x(), 220.f, width() - 300.f);
+    float x = std::clamp((float)vd.x(), 500.f, width() - 500.f);
     float y = std::clamp((float)vd.y(), 300.f, height() - 180.f);
-    {
 
-        y -= ((icon_size / 2) - d_rel);
-        if (no_radar) {
-            //x = path_x;
-            x = std::clamp(path_x, 300.f, width() - 300.f);
-            y = path_y; // height() - 250;
-        }
-        if (y > height() - 400) y = height() - 400;
-
-        x = apilot_filter_x.update(x);
-        y = apilot_filter_y.update(y);
+    y -= ((icon_size / 2) - d_rel);
+    if (no_radar) {
+        //x = path_x;
+        x = std::clamp(path_x, 300.f, width() - 300.f);
+        y = path_y; // height() - 250;
     }
+    if (y > height() - 400) y = height() - 400;
+
+    x = apilot_filter_x.update(x);
+    y = apilot_filter_y.update(y);
 
     // 신호등(traffic)그리기.
     // 신호등내부에는 레이더거리, 비젼거리, 정지거리, 신호대기 표시함.
@@ -1565,25 +1567,27 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
     int brake_hold = car_state.getBrakeHoldActive();
     int soft_hold = (hud_control.getSoftHold()) ? 1 : 0;
 
-    float cur_speed = std::max(0.0, sm["carState"].getCarState().getVEgoCluster() * (s->scene.is_metric ? MS_TO_KPH : MS_TO_MPH));
+    float v_ego = sm["carState"].getCarState().getVEgoCluster();
+    float v_ego_kph = v_ego * MS_TO_KPH;
+    float cur_speed = v_ego * (s->scene.is_metric ? MS_TO_KPH : MS_TO_MPH);
     bool brake_valid = car_state.getBrakeLights();
     // 차로변경/자동턴 표시
     bool showDistInfo = true;
     bool showBg = (disp_dist>0.0) ? true: false;
-#if 1
     auto lateralPlan = sm["lateralPlan"].getLateralPlan();
     auto desire = lateralPlan.getDesire();
     float desireStateTurnLeft = (desire == cereal::LateralPlan::Desire::TURN_LEFT) ? 1 : 0;
     float desireStateTurnRight = (desire == cereal::LateralPlan::Desire::TURN_RIGHT) ? 1 : 0;
     float desireStateLaneChangeLeft = (desire == cereal::LateralPlan::Desire::LANE_CHANGE_LEFT) ? 1 : 0;
     float desireStateLaneChangeRight = (desire == cereal::LateralPlan::Desire::LANE_CHANGE_RIGHT) ? 1 : 0;
-#else
-    auto meta = sm["modelV2"].getModelV2().getMeta();
-    float desireStateTurnLeft = meta.getDesireState()[1];
-    float desireStateTurnRight = meta.getDesireState()[2];
-    float desireStateLaneChangeLeft = meta.getDesireState()[3];
-    float desireStateLaneChangeRight = meta.getDesireState()[4];
-#endif
+
+    if (desire == cereal::LateralPlan::Desire::NONE) {
+        auto meta = sm["modelV2"].getModelV2().getMeta();
+        desireStateTurnLeft = meta.getDesireState()[1];
+        desireStateTurnRight = meta.getDesireState()[2];
+        desireStateLaneChangeLeft = meta.getDesireState()[3];
+        desireStateLaneChangeRight = meta.getDesireState()[4];
+    }
     bool leftBlinker = car_state.getLeftBlinker();
     bool rightBlinker = car_state.getRightBlinker();
     static int blinkerTimer = 0;
@@ -1741,7 +1745,7 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
 
         if (no_radar) {
             if (stop_dist > 0.5 && stopping) {
-                textColor = QColor(255, 0, 0, 255);
+                textColor = QColor(255, 255, 255, 255);
                 configFont(painter, "Inter", 45, "Bold");
                 if (stop_dist < 10.0) str.sprintf("%.1f", stop_dist);
                 else str.sprintf("%.0f", stop_dist);
@@ -1841,7 +1845,7 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
             if (xState == cereal::LongitudinalPlan::XState::E2E_STOP) str.sprintf("신호감지");
             else if (xState == cereal::LongitudinalPlan::XState::SOFT_HOLD) str.sprintf("SOFTHOLD");
             else if (xState == cereal::LongitudinalPlan::XState::LEAD) str.sprintf("LEAD");
-            else if (xState == cereal::LongitudinalPlan::XState::E2E_CRUISE) str.sprintf("E2E주행");
+            else if (xState == cereal::LongitudinalPlan::XState::E2E_CRUISE) str.sprintf((v_ego_kph<80)?"E2E주행":"정속주행");
             else if (xState == cereal::LongitudinalPlan::XState::CRUISE) str.sprintf("정속주행");
             else str.sprintf("UNKNOWN");
         }

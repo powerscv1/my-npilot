@@ -307,7 +307,7 @@
       "title": "모델커브속도조절비율(100%)",
       "descr": "커브속도조절(커브속도 조절 2일때 적용)",
       "min": 50,
-      "max": 150,
+      "max": 300,
       "default": 1,
       "unit": 1
     },
@@ -765,10 +765,20 @@
       "group": "조향",
       "name": "AutoCurveSpeedCtrl",
       "title": "커브제어방법",
-      "descr": "0:사용안함,1:방법1,2:방법2",
+      "descr": "0:사용안함,1:방법1,2:방법2,3:APILOT",
       "min": 0,
-      "max": 2,
+      "max": 3,
       "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "조향",
+      "name": "AutoCurveSpeedIndex",
+      "title": "커브제어INDEX",
+      "descr": "",
+      "min": 0,
+      "max": 15,
+      "default": 5,
       "unit": 1
     },
     {
