@@ -72,6 +72,7 @@ class DesireHelper:
     self.autoLaneChangeSpeed = int(Params().get("AutoLaneChangeSpeed", encoding="'utf8"))
 
     self.desireEvent = 0
+    self.waitTorqueApplied = False
 
 
   def update(self, carstate, lateral_active, lane_change_prob, md, turn_prob):
@@ -116,8 +117,7 @@ class DesireHelper:
       self.lane_change_state = LaneChangeState.off
       #self.lane_change_direction = LaneChangeDirection.none
       self.desireEvent = 0
-    else:
-      #self.lane_change_direction = LaneChangeDirection.none
+    else:      
       # 1. 감지 및 결정 단계: LaneChangeState.off: 깜박이와 속도검사. 
       #   - 정지상태: 깜박이를 켜고 있음: 출발할때 검사해야함.
       #   - 저속: 차선변경속도이하: 턴할지, 차로변경할지 결정해야함.
@@ -125,6 +125,7 @@ class DesireHelper:
       #   - 고속
       if self.lane_change_state == LaneChangeState.off:
         self.desireEvent = 0
+        self.lane_change_direction = LaneChangeDirection.none
         self.turnControlState = False
         if one_blinker and (not self.prev_one_blinker or v_ego_kph < 4 or steering_pressed):  ##깜박이가 켜진시점에 검사, 정지상태에서는 lat_active가 아님. 깜박이켠방향으로 핸들을 돌림.
           # 정지상태, 출발할때
@@ -215,15 +216,16 @@ class DesireHelper:
 
         ## 차선변경시 핸들을 방향으로 건들면... 턴으로 변경, 반대로 하면 취소..
         if not self.turnControlState:
-          if steering_pressed and checkAutoTurnSpeed:
+          if steering_pressed and checkAutoTurnSpeed:  # 저속, 차선변경중 같은 방향 핸들토크.
             self.turnControlState = True
-          elif carstate.steeringPressed:
-            self.lane_change_state = LaneChangeState.off
-          elif self.lane_change_direction == LaneChangeDirection.right and road_edge_detected and checkAutoTurnSpeed:
+          elif carstate.steeringPressed:  # 차선변경중 핸들토크: 무시
+            #self.lane_change_state = LaneChangeState.off
+            pass
+          elif self.lane_change_direction == LaneChangeDirection.right and road_edge_detected and checkAutoTurnSpeed: # 우측차선변경, 로드엣지, 턴속도, 턴~
             self.turnControlState = True
-        elif steering_pressed:
+        elif steering_pressed: #턴중 핸들돌림... 무시
           pass
-        elif carstate.steeringPressed: # 반대로 조향한경우 off
+        elif carstate.steeringPressed: # 턴중 반대로 핸들돌림... off
           self.lane_change_state = LaneChangeState.off
 
         # 98% certainty
