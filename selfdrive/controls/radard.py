@@ -12,6 +12,7 @@ from selfdrive.controls.lib.cluster.fastcluster_py import cluster_points_centroi
 from selfdrive.controls.lib.radar_helpers import Cluster, Track, RADAR_TO_CAMERA
 from selfdrive.swaglog import cloudlog
 from selfdrive.hardware import TICI
+from common.params import Params
 
 from selfdrive.controls.lib.lane_planner import TRAJECTORY_SIZE
 import numpy as np
@@ -173,8 +174,11 @@ class RadarD():
     self.v_ego_hist = deque([0], maxlen=delay+1)
 
     self.ready = False
+    self.showRadarInfo = False
 
   def update(self, sm, rr):
+    self.showRadarInfo = int(Params().get("ShowRadarInfo"))
+
     self.current_time = 1e-9*max(sm.logMonoTime.values())
 
     if sm.updated['carState']:
@@ -246,7 +250,7 @@ class RadarD():
       radarState.leadOne = get_lead(self.v_ego, self.ready, clusters, leads_v3[0], low_speed_override=True)
       radarState.leadTwo = get_lead(self.v_ego, self.ready, clusters, leads_v3[1], low_speed_override=False)
 
-      if self.ready and True: #self.extended_radar_enabled and self.ready:
+      if self.ready and self.showRadarInfo: #self.extended_radar_enabled and self.ready:
         #ll,lc,lr = get_path_adjacent_leads(self.v_ego, sm['modelV2'], sm['lateralPlan'].laneWidth, clusters)
         ll,lc,lr = get_path_adjacent_leads(self.v_ego, sm['modelV2'], 3.7, clusters)
         #try:
