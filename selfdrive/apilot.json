@@ -547,7 +547,7 @@
       "title": "화면TPMS",
       "descr": "",
       "min": 0,
-      "max": 6,
+      "max": 1,
       "default": 1,
       "unit": 1
     },
@@ -619,6 +619,16 @@
       "min": 0,
       "max": 1,
       "default": 1,
+      "unit": 1
+    },
+    {
+      "group": "화면",
+      "name": "ShowRadarInfo",
+      "title": "화면레이더감지정보",
+      "descr": "",
+      "min": 0,
+      "max": 2,
+      "default": 0,
       "unit": 1
     },
     {

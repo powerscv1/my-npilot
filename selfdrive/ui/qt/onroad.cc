@@ -552,7 +552,7 @@ void AnnotatedCameraWidget::paintEvent(QPaintEvent *event) {
 
 
     // DMoji
-    if (s->show_mode > 0 && !hideDM && (sm.rcv_frame("driverState") > s->scene.started_frame)) {
+    if (s->show_dm_info > 0 && !hideDM && (sm.rcv_frame("driverState") > s->scene.started_frame)) {
       update_dmonitoring(s, sm["driverState"].getDriverState(), dm_fade_state);
       drawDriverState(p, s);
     }
@@ -1783,7 +1783,7 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
 
             configFont(painter, "Inter", 40, "Bold");
             if (s->show_steer_mode >= 2) {
-                int radar_y = (path_y > height() - 500) ? height() - 500 : path_y - 40;
+                int radar_y = (path_y > height() - 550) ? height() - 550 : path_y - 40;
                 QRect rectRadar(path_x - 250 / 2, radar_y - 35, 250, 45);
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(bgColor);
@@ -2112,7 +2112,7 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
         if (enabled && longActiveUser>0 && applyMaxSpeed < cruiseMaxSpeed - 0.5) {
             configFont(painter, "Inter", 50, "Bold");
             str.sprintf("%d", (int)(applyMaxSpeed + 0.5));
-            drawTextWithColor(painter, bx + 280, by, str, color);
+            drawTextWithColor(painter, bx + 250, by - 50, str, color);
         }
 
 #ifdef __TEST
@@ -2204,6 +2204,65 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
           drawText2(painter, center_x + marginX, center_y + marginY, Qt::AlignLeft, get_tpms_text(rr), get_tpms_color(rr));
       }
 
+    }
+    if (s->show_radar_info) {
+        QString str;
+        //painter.setPen(Qt::NoPen);
+        painter.setPen(QPen(Qt::white, 2));
+        configFont(painter, "Inter", 40, "Bold");
+        QFontMetrics fm(painter.font());
+        QRect rcFont = fm.boundingRect("9");
+        textColor = whiteColor(255);
+        int w = rcFont.width();
+        bool disp = false;
+        for (auto const& vrd : s->scene.lead_vertices_ongoing) {
+            auto [rx, ry, rd, rv] = vrd;
+            disp = true;
+            if (fabs(rv) > 0.5) str.sprintf(" %.0f ", rv * 3.6);
+            else {
+                str = "*"; 
+                disp = (s->show_radar_info > 1) ? true : false;
+            }
+            if (disp) {
+                QRect rectRadar(rx - w * str.length() / 2, ry - 35, w* str.length(), 45);
+                bgColor = greenColor(255);
+                painter.setBrush(bgColor);
+                painter.drawRoundedRect(rectRadar, 15, 15);
+                drawTextWithColor(painter, rx, ry, str, textColor);
+            }
+        }
+        for (auto const& vrd : s->scene.lead_vertices_oncoming) {
+            auto [rx, ry, rd, rv] = vrd;
+            disp = true;
+            if (fabs(rv) > 0.5) str.sprintf(" %.0f ", rv * 3.6);
+            else {
+                str = "*";
+                disp = (s->show_radar_info > 1) ? true : false;
+            }
+            if (disp) {
+                QRect rectRadar(rx - w * str.length() / 2, ry - 35, w * str.length(), 45);
+                bgColor = redColor(255);
+                painter.setBrush(bgColor);
+                painter.drawRoundedRect(rectRadar, 15, 15);
+                drawTextWithColor(painter, rx, ry, str, textColor);
+            }
+        }
+        for (auto const& vrd : s->scene.lead_vertices_stopped) {
+            auto [rx, ry, rd, rv] = vrd;
+            disp = true;
+            if (fabs(rv) > 0.5) str.sprintf(" %.0f ", rv * 3.6);
+            else {
+                str = "*";
+                disp = (s->show_radar_info > 1) ? true : false;
+            }
+            if (disp) {
+                QRect rectRadar(rx - w * str.length() / 2, ry - 35, w * str.length(), 45);
+                bgColor = blackColor(255);
+                painter.setBrush(bgColor);
+                painter.drawRoundedRect(rectRadar, 15, 15);
+                drawTextWithColor(painter, rx, ry, str, textColor);
+            }
+        }
     }
     // 시간표시
     if(s->show_datetime) {
