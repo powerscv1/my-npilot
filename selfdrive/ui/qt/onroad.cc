@@ -2220,8 +2220,9 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
             auto [rx, ry, rd, rv] = vrd;
             disp = true;
             if (fabs(rv) > 0.5) {
-                str.sprintf("%.0f", rv * 3.6); 
+                str.sprintf("%.0f", rv * 3.6);
                 wStr = w * (str.length() + 1);
+            }
             else {
                 str = "*"; 
                 wStr = w;
@@ -2241,6 +2242,7 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
             if (fabs(rv) > 0.5) {
                 str.sprintf("%.0f", rv * 3.6);
                 wStr = w * (str.length() + 1);
+            }
             else {
                 str = "*";
                 wStr = w;
@@ -2260,6 +2262,7 @@ void AnnotatedCameraWidget::drawLeadApilot(QPainter& painter, const cereal::Mode
             if (fabs(rv) > 0.5) {
                 str.sprintf("%.0f", rv * 3.6);
                 wStr = w * (str.length() + 1);
+            }
             else {
                 str = "*";
                 wStr = w;
