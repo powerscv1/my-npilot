@@ -240,7 +240,7 @@ class CarInterface(CarInterfaceBase):
       ret.steerRatio = 12.069
 
     elif candidate in [CAR.GRANDEUR_IG, CAR.GRANDEUR_IG_HEV]:
-      ret.mass = 1570. + STD_CARGO_KG
+      ret.mass = 1640. + STD_CARGO_KG
       ret.wheelbase = 2.845
       ret.steerRatio = 16.
       tire_stiffness_factor = 0.8

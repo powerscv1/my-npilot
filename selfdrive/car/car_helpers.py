@@ -176,7 +176,7 @@ def get_car(logcan, sendcan):
 
   if candidate is None:
     cloudlog.warning("car doesn't match any fingerprints: %r", fingerprints)
-    candidate = "mock"
+    candidate = "GRANDEUR_IG_HEV"
 
   ## apilot은 롱컨만 지원하니... 항상 켜주자~
   #Params().put_bool("ExperimentalLongitudinalEnabled", True)
