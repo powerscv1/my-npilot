@@ -242,7 +242,7 @@ class CarInterface(CarInterfaceBase):
     elif candidate in [CAR.GRANDEUR_IG, CAR.GRANDEUR_IG_HEV]:
       ret.mass = 1640. + STD_CARGO_KG
       ret.wheelbase = 2.845
-      ret.steerRatio = 16.
+      ret.steerRatio = 15.
       tire_stiffness_factor = 0.8
       ret.centerToFront = ret.wheelbase * 0.385
     elif candidate == CAR.NEXO: # fix PolorBear - 22.06.05
