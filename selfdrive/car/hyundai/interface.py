@@ -56,7 +56,7 @@ class CarInterface(CarInterfaceBase):
     ret.steerActuatorDelay = 0.1  # Default delay
     ret.steerLimitTimer = 0.4
 
-    ret.steerRatio = 16.
+    ret.steerRatio = 15.
     tire_stiffness_factor = 1.
     CarInterfaceBase.configure_torque_tune(candidate, ret.lateralTuning)
     if candidate in (CAR.GRANDEUR_IG_FL, CAR.GRANDEUR_IG_FL_HEV):
@@ -242,7 +242,7 @@ class CarInterface(CarInterfaceBase):
     elif candidate in [CAR.GRANDEUR_IG, CAR.GRANDEUR_IG_HEV]:
       ret.mass = 1640. + STD_CARGO_KG
       ret.wheelbase = 2.845
-      ret.steerRatio = 15.
+      ret.steerRatio = 14.5
       tire_stiffness_factor = 0.8
       ret.centerToFront = ret.wheelbase * 0.385
     elif candidate == CAR.NEXO: # fix PolorBear - 22.06.05
